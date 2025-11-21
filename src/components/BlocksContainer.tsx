@@ -92,8 +92,12 @@ export function BlocksContainer({ units, colors }: BlocksContainerProps) {
                   }
                 });
 
+                // Verificar se é cobertura baseado no bloco atual
+                const isCoverage = (floor === '11') || 
+                                 (floor === '10' && (block === 'B' || block === 'C'));
+
                 const floorText = floor === '0' ? 'Térreo' : 
-                                 floor === '11' || floor === '10' ? 'Cobertura' : 
+                                 isCoverage ? 'Cobertura' : 
                                  `${floor}º Andar`;
 
                 return (

@@ -83,13 +83,19 @@ export function FilterControls({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os Andares</SelectItem>
-                {availableFloors.map((floor) => (
-                  <SelectItem key={floor} value={floor}>
-                    {floor === '0' ? 'Térreo' : 
-                     floor === '11' || floor === '10' ? 'Cobertura' : 
-                     `${floor}º Andar`}
-                  </SelectItem>
-                ))}
+                {availableFloors.map((floor) => {
+                  // Verificar se é cobertura baseado no bloco selecionado
+                  const isCoverage = (floor === '11') || 
+                                   (floor === '10' && (filters.block === 'B' || filters.block === 'C'));
+                  
+                  return (
+                    <SelectItem key={floor} value={floor}>
+                      {floor === '0' ? 'Térreo' : 
+                       isCoverage ? 'Cobertura' : 
+                       `${floor}º Andar`}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
 
