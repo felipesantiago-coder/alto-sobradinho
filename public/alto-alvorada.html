@@ -410,6 +410,43 @@
             grid-column: 1 / -1;
         }
         
+        /* Classe especial para geração de PDF */
+        .pdf-generation {
+            overflow: visible !important;
+            height: auto !important;
+        }
+        
+        .pdf-generation .unit-card {
+            break-inside: avoid;
+            page-break-inside: avoid;
+            overflow: visible !important;
+            box-shadow: none !important;
+            border: 1px solid #ddd !important;
+            margin-bottom: 8px !important;
+        }
+        
+        .pdf-generation .block-section {
+            break-inside: avoid;
+            page-break-inside: avoid;
+            overflow: visible !important;
+            box-shadow: none !important;
+            border: 1px solid #ccc !important;
+            margin-bottom: 15px !important;
+        }
+        
+        .pdf-generation .floor-section {
+            break-inside: avoid;
+            page-break-inside: avoid;
+            overflow: visible !important;
+            margin-bottom: 10px !important;
+        }
+        
+        .pdf-generation .units-list {
+            break-inside: avoid;
+            page-break-inside: avoid;
+            overflow: visible !important;
+        }
+        
         @media (max-width: 575px) {
             .container {
                 padding: 10px;
@@ -438,12 +475,63 @@
                 display: none;
             }
             
+            .container {
+                max-width: none;
+                padding: 5px;
+            }
+            
             .blocks-container {
-                grid-template-columns: repeat(2, 1fr) !important;
+                grid-template-columns: repeat(3, 1fr) !important;
+                gap: 10px !important;
+            }
+            
+            .block-section {
+                break-inside: avoid;
+                page-break-inside: avoid;
+                margin-bottom: 15px;
+            }
+            
+            .floor-section {
+                break-inside: avoid;
+                page-break-inside: avoid;
+                margin-bottom: 10px;
             }
             
             .unit-card {
                 break-inside: avoid;
+                page-break-inside: avoid;
+                margin-bottom: 5px;
+                min-height: 100px;
+            }
+            
+            .units-list {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+            
+            /* Ajustar fontes para impressão */
+            .unit-number {
+                font-size: 12px !important;
+            }
+            
+            .unit-details {
+                font-size: 9px !important;
+            }
+            
+            .unit-price {
+                font-size: 8px !important;
+            }
+            
+            .unit-status {
+                font-size: 8px !important;
+            }
+            
+            .block-title {
+                font-size: 14px !important;
+            }
+            
+            .floor-title {
+                font-size: 12px !important;
             }
         }
     </style>
@@ -1073,7 +1161,16 @@
         function generatePDF() {
             const { jsPDF } = window.jspdf;
             
-            // Remover controles temporariamente para a captura
+            // Mostrar indicador de carregamento
+            const button = document.getElementById('generatePdf');
+            const originalText = button.textContent;
+            button.textContent = 'Gerando PDF...';
+            button.disabled = true;
+            
+            // Adicionar classe especial para PDF
+            document.body.classList.add('pdf-generation');
+            
+            // Ocultar elementos que não devem aparecer no PDF
             const controls = document.querySelector('.controls');
             const legends = document.querySelector('.legends');
             const footer = document.querySelector('footer');
@@ -1082,23 +1179,37 @@
             legends.style.display = 'none';
             footer.style.display = 'none';
             
-            html2canvas(document.querySelector('.container'), {
-                scale: 0.8,
+            // Opções melhoradas para html2canvas
+            const options = {
+                scale: 1.2,
                 useCORS: true,
-                allowTaint: true
-            }).then(canvas => {
-                const imgData = canvas.toDataURL('image/png');
+                logging: false,
+                allowTaint: true,
+                backgroundColor: '#ffffff',
+                width: document.getElementById('blocksContainer').scrollWidth,
+                height: document.getElementById('blocksContainer').scrollHeight,
+                scrollX: 0,
+                scrollY: 0,
+                windowWidth: document.getElementById('blocksContainer').scrollWidth,
+                windowHeight: document.getElementById('blocksContainer').scrollHeight
+            };
+            
+            // Usar html2canvas para capturar o conteúdo completo
+            html2canvas(document.getElementById('blocksContainer'), options).then(canvas => {
+                const imgData = canvas.toDataURL('image/png', 1.0);
                 const pdf = new jsPDF('l', 'mm', 'a4');
                 
-                const imgWidth = 297;
-                const pageHeight = 210;
+                const imgWidth = 297; // Largura A4 em mm (landscape)
+                const pageHeight = 210; // Altura A4 em mm (landscape)
                 const imgHeight = (canvas.height * imgWidth) / canvas.width;
                 let heightLeft = imgHeight;
                 let position = 0;
                 
+                // Adicionar a primeira página
                 pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
                 heightLeft -= pageHeight;
                 
+                // Adicionar páginas adicionais se necessário
                 while (heightLeft >= 0) {
                     position = heightLeft - imgHeight;
                     pdf.addPage();
@@ -1106,12 +1217,35 @@
                     heightLeft -= pageHeight;
                 }
                 
-                pdf.save('alto-alvorada-espelho-vendas.pdf');
+                // Salvar o PDF
+                pdf.save('alto-da-alvorada-espelho-vendas.pdf');
                 
-                // Restaurar controles
+                // Restaurar elementos ocultos
                 controls.style.display = '';
                 legends.style.display = '';
                 footer.style.display = '';
+                
+                // Remover classe especial para PDF
+                document.body.classList.remove('pdf-generation');
+                
+                // Restaurar o botão
+                button.textContent = originalText;
+                button.disabled = false;
+            }).catch(error => {
+                console.error('Erro ao gerar PDF:', error);
+                
+                // Restaurar elementos ocultos
+                controls.style.display = '';
+                legends.style.display = '';
+                footer.style.display = '';
+                
+                // Remover classe especial para PDF
+                document.body.classList.remove('pdf-generation');
+                
+                // Restaurar o botão
+                button.textContent = originalText;
+                button.disabled = false;
+                alert('Ocorreu um erro ao gerar o PDF. Por favor, tente novamente.');
             });
         }
 

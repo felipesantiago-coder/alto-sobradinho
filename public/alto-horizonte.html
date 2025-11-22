@@ -290,7 +290,7 @@
             justify-content: space-between;
         }
         
-        .unit-card.vendida {
+        .unit-card.vendido {
             border-left-color: var(--vendido-color);
             opacity: 0.8;
         }
@@ -345,11 +345,11 @@
             margin-top: 3px;
         }
         
-        .status-disponível {
+        .status-disponivel {
             color: var(--disponivel-color);
         }
         
-        .status-vendida {
+        .status-vendido {
             color: var(--vendido-color);
         }
         
@@ -410,6 +410,43 @@
             grid-column: 1 / -1;
         }
         
+        /* Classe especial para geração de PDF */
+        .pdf-generation {
+            overflow: visible !important;
+            height: auto !important;
+        }
+        
+        .pdf-generation .unit-card {
+            break-inside: avoid;
+            page-break-inside: avoid;
+            overflow: visible !important;
+            box-shadow: none !important;
+            border: 1px solid #ddd !important;
+            margin-bottom: 8px !important;
+        }
+        
+        .pdf-generation .block-section {
+            break-inside: avoid;
+            page-break-inside: avoid;
+            overflow: visible !important;
+            box-shadow: none !important;
+            border: 1px solid #ccc !important;
+            margin-bottom: 15px !important;
+        }
+        
+        .pdf-generation .floor-section {
+            break-inside: avoid;
+            page-break-inside: avoid;
+            overflow: visible !important;
+            margin-bottom: 10px !important;
+        }
+        
+        .pdf-generation .units-list {
+            break-inside: avoid;
+            page-break-inside: avoid;
+            overflow: visible !important;
+        }
+        
         @media (max-width: 575px) {
             .container {
                 padding: 10px;
@@ -438,12 +475,63 @@
                 display: none;
             }
             
+            .container {
+                max-width: none;
+                padding: 5px;
+            }
+            
             .blocks-container {
-                grid-template-columns: repeat(2, 1fr) !important;
+                grid-template-columns: repeat(3, 1fr) !important;
+                gap: 10px !important;
+            }
+            
+            .block-section {
+                break-inside: avoid;
+                page-break-inside: avoid;
+                margin-bottom: 15px;
+            }
+            
+            .floor-section {
+                break-inside: avoid;
+                page-break-inside: avoid;
+                margin-bottom: 10px;
             }
             
             .unit-card {
                 break-inside: avoid;
+                page-break-inside: avoid;
+                margin-bottom: 5px;
+                min-height: 100px;
+            }
+            
+            .units-list {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+            
+            /* Ajustar fontes para impressão */
+            .unit-number {
+                font-size: 12px !important;
+            }
+            
+            .unit-details {
+                font-size: 9px !important;
+            }
+            
+            .unit-price {
+                font-size: 8px !important;
+            }
+            
+            .unit-status {
+                font-size: 8px !important;
+            }
+            
+            .block-title {
+                font-size: 14px !important;
+            }
+            
+            .floor-title {
+                font-size: 12px !important;
             }
         }
     </style>
@@ -581,7 +669,7 @@
     </div>
 
     <script>
-        // Dados simplificados para Alto do Horizonte - usando dados do Alto da Alvorada como base
+        // Dados da tabela de valores - COMPLETO E SINTATICAMENTE CORRETO
         function generateAllUnits() {
             const allUnits = [];
             const blocks = ['A', 'B', 'C', 'D'];
@@ -602,102 +690,106 @@
                 }}
             };
 
-            // Status baseados no arquivo Excel fornecido - simplificado
+            // Status baseados no arquivo Excel fornecido
             const statusData = {
-                'A-1': 'disponivel', 'A-2': 'disponivel', 'A-4': 'disponivel', 'A-6': 'disponivel',
-                'A-7': 'disponivel', 'A-8': 'disponivel', 'A-101': 'disponivel', 'A-102': 'disponivel',
-                'A-103': 'disponivel', 'A-104': 'disponivel', 'A-105': 'disponivel', 'A-106': 'disponivel',
-                'A-107': 'disponivel', 'A-108': 'disponivel', 'A-201': 'disponivel', 'A-202': 'disponivel',
-                'A-203': 'disponivel', 'A-204': 'disponivel', 'A-205': 'disponivel', 'A-206': 'disponivel',
-                'A-207': 'disponivel', 'A-208': 'disponivel', 'A-301': 'disponivel', 'A-302': 'disponivel',
-                'A-303': 'disponivel', 'A-304': 'disponivel', 'A-305': 'disponivel', 'A-306': 'disponivel',
-                'A-307': 'disponivel', 'A-308': 'disponivel', 'A-401': 'disponivel', 'A-402': 'disponivel',
-                'A-403': 'disponivel', 'A-404': 'disponivel', 'A-405': 'disponivel', 'A-406': 'disponivel',
-                'A-407': 'disponivel', 'A-408': 'disponivel', 'A-501': 'disponivel', 'A-502': 'disponivel',
-                'A-503': 'disponivel', 'A-504': 'disponivel', 'A-505': 'disponivel', 'A-506': 'disponivel',
-                'A-507': 'disponivel', 'A-508': 'disponivel', 'A-601': 'disponivel', 'A-602': 'disponivel',
-                'A-603': 'disponivel', 'A-604': 'disponivel', 'A-605': 'disponivel', 'A-606': 'disponivel',
-                'A-607': 'disponivel', 'A-608': 'disponivel', 'A-701': 'disponivel', 'A-702': 'disponivel',
-                'A-703': 'disponivel', 'A-704': 'disponivel', 'A-705': 'disponivel', 'A-706': 'disponivel',
-                'A-707': 'disponivel', 'A-708': 'disponivel', 'A-801': 'disponivel', 'A-802': 'disponivel',
-                'A-803': 'disponivel', 'A-804': 'disponivel', 'A-805': 'disponivel', 'A-806': 'disponivel',
-                'A-807': 'disponivel', 'A-808': 'disponivel', 'A-901': 'disponivel', 'A-902': 'disponivel',
-                'A-903': 'disponivel', 'A-904': 'disponivel', 'A-905': 'disponivel', 'A-906': 'disponivel',
-                'A-907': 'disponivel', 'A-908': 'disponivel', 'A-1001': 'disponivel', 'A-1002': 'disponivel',
-                'A-1003': 'disponivel', 'A-1004': 'disponivel', 'A-1005': 'disponivel', 'A-1006': 'disponivel',
-                'A-1007': 'disponivel', 'A-1008': 'disponivel', 'A-1101': 'disponivel', 'A-1102': 'disponivel',
-                'A-1103': 'disponivel', 'A-1104': 'disponivel',
+                // Bloco A
+                'A-1': 'vendido', 'A-2': 'vendido', 'A-4': 'vendido', 'A-6': 'vendido',
+                'A-7': 'vendido', 'A-8': 'vendido', 'A-101': 'vendido', 'A-102': 'vendido',
+                'A-103': 'vendido', 'A-104': 'vendido', 'A-105': 'vendido', 'A-106': 'vendido',
+                'A-107': 'vendido', 'A-108': 'disponivel', 'A-201': 'vendido', 'A-202': 'vendido',
+                'A-203': 'vendido', 'A-204': 'vendido', 'A-205': 'vendido', 'A-206': 'vendido',
+                'A-207': 'vendido', 'A-208': 'vendido', 'A-301': 'vendido', 'A-302': 'vendido',
+                'A-303': 'vendido', 'A-304': 'vendido', 'A-305': 'quitado', 'A-306': 'vendido',
+                'A-307': 'vendido', 'A-308': 'vendido', 'A-401': 'vendido', 'A-402': 'vendido',
+                'A-403': 'vendido', 'A-404': 'vendido', 'A-405': 'vendido', 'A-406': 'vendido',
+                'A-407': 'vendido', 'A-408': 'vendido', 'A-501': 'vendido', 'A-502': 'vendido',
+                'A-503': 'vendido', 'A-504': 'vendido', 'A-505': 'vendido', 'A-506': 'vendido',
+                'A-507': 'vendido', 'A-508': 'quitado', 'A-601': 'vendido', 'A-602': 'vendido',
+                'A-603': 'quitado', 'A-604': 'vendido', 'A-605': 'vendido', 'A-606': 'vendido',
+                'A-607': 'vendido', 'A-608': 'vendido', 'A-701': 'vendido', 'A-702': 'vendido',
+                'A-703': 'vendido', 'A-704': 'vendido', 'A-705': 'vendido', 'A-706': 'vendido',
+                'A-707': 'vendido', 'A-708': 'vendido', 'A-801': 'vendido', 'A-802': 'vendido',
+                'A-803': 'vendido', 'A-804': 'vendido', 'A-805': 'vendido', 'A-806': 'vendido',
+                'A-807': 'vendido', 'A-808': 'vendido', 'A-901': 'vendido', 'A-902': 'vendido',
+                'A-903': 'vendido', 'A-904': 'vendido', 'A-905': 'vendido', 'A-906': 'vendido',
+                'A-907': 'vendido', 'A-908': 'vendido', 'A-1001': 'vendido', 'A-1002': 'vendido',
+                'A-1003': 'vendido', 'A-1004': 'vendido', 'A-1005': 'vendido', 'A-1006': 'vendido',
+                'A-1007': 'quitado', 'A-1008': 'vendido', 'A-1101': 'vendido', 'A-1102': 'vendido',
+                'A-1107': 'quitado', 'A-1108': 'disponivel',
                 
-                'B-1': 'disponivel', 'B-2': 'disponivel', 'B-4': 'disponivel', 'B-6': 'disponivel',
-                'B-7': 'disponivel', 'B-8': 'disponivel', 'B-101': 'disponivel', 'B-102': 'disponivel',
-                'B-103': 'disponivel', 'B-104': 'disponivel', 'B-105': 'disponivel', 'B-106': 'disponivel',
-                'B-107': 'disponivel', 'B-108': 'disponivel', 'B-201': 'disponivel', 'B-202': 'disponivel',
-                'B-203': 'disponivel', 'B-204': 'disponivel', 'B-205': 'disponivel', 'B-206': 'disponivel',
-                'B-207': 'disponivel', 'B-208': 'disponivel', 'B-301': 'disponivel', 'B-302': 'disponivel',
-                'B-303': 'disponivel', 'B-304': 'disponivel', 'B-305': 'disponivel', 'B-306': 'disponivel',
-                'B-307': 'disponivel', 'B-308': 'disponivel', 'B-401': 'disponivel', 'B-402': 'disponivel',
-                'B-403': 'disponivel', 'B-404': 'disponivel', 'B-405': 'disponivel', 'B-406': 'disponivel',
-                'B-407': 'disponivel', 'B-408': 'disponivel', 'B-501': 'disponivel', 'B-502': 'disponivel',
-                'B-503': 'disponivel', 'B-504': 'disponivel', 'B-505': 'disponivel', 'B-506': 'disponivel',
-                'B-507': 'disponivel', 'B-508': 'disponivel', 'B-601': 'disponivel', 'B-602': 'disponivel',
-                'B-603': 'disponivel', 'B-604': 'disponivel', 'B-605': 'disponivel', 'B-606': 'disponivel',
-                'B-607': 'disponivel', 'B-608': 'disponivel', 'B-701': 'disponivel', 'B-702': 'disponivel',
-                'B-703': 'disponivel', 'B-704': 'disponivel', 'B-705': 'disponivel', 'B-706': 'disponivel',
-                'B-707': 'disponivel', 'B-708': 'disponivel', 'B-801': 'disponivel', 'B-802': 'disponivel',
-                'B-803': 'disponivel', 'B-804': 'disponivel', 'B-805': 'disponivel', 'B-806': 'disponivel',
-                'B-807': 'disponivel', 'B-808': 'disponivel', 'B-901': 'disponivel', 'B-902': 'disponivel',
-                'B-903': 'disponivel', 'B-904': 'disponivel', 'B-905': 'disponivel', 'B-906': 'disponivel',
-                'B-907': 'disponivel', 'B-908': 'disponivel', 'B-1001': 'disponivel', 'B-1002': 'disponivel',
-                'B-1003': 'disponivel', 'B-1004': 'disponivel',
+                // Bloco B
+                'B-1': 'vendido', 'B-2': 'vendido', 'B-4': 'vendido', 'B-6': 'vendido',
+                'B-7': 'vendido', 'B-8': 'vendido', 'B-101': 'vendido', 'B-102': 'vendido',
+                'B-103': 'vendido', 'B-104': 'vendido', 'B-105': 'vendido', 'B-106': 'vendido',
+                'B-107': 'disponivel', 'B-108': 'vendido', 'B-201': 'disponivel', 'B-202': 'vendido',
+                'B-203': 'vendido', 'B-204': 'vendido', 'B-205': 'vendido', 'B-206': 'vendido',
+                'B-207': 'disponivel', 'B-208': 'quitado', 'B-301': 'vendido', 'B-302': 'vendido',
+                'B-303': 'quitado', 'B-304': 'vendido', 'B-305': 'vendido', 'B-306': 'vendido',
+                'B-307': 'vendido', 'B-308': 'vendido', 'B-401': 'vendido', 'B-402': 'vendido',
+                'B-403': 'vendido', 'B-404': 'vendido', 'B-405': 'vendido', 'B-406': 'vendido',
+                'B-407': 'vendido', 'B-408': 'quitado', 'B-501': 'vendido', 'B-502': 'vendido',
+                'B-503': 'vendido', 'B-504': 'vendido', 'B-505': 'vendido', 'B-506': 'quitado',
+                'B-507': 'vendido', 'B-508': 'vendido', 'B-601': 'vendido', 'B-602': 'vendido',
+                'B-603': 'vendido', 'B-604': 'vendido', 'B-605': 'vendido', 'B-606': 'quitado',
+                'B-607': 'vendido', 'B-608': 'quitado', 'B-701': 'vendido', 'B-702': 'vendido',
+                'B-703': 'vendido', 'B-704': 'vendido', 'B-705': 'vendido', 'B-706': 'vendido',
+                'B-707': 'vendido', 'B-708': 'vendido', 'B-801': 'vendido', 'B-802': 'vendido',
+                'B-803': 'vendido', 'B-804': 'vendido', 'B-805': 'vendido', 'B-806': 'vendido',
+                'B-807': 'vendido', 'B-808': 'vendido', 'B-901': 'vendido', 'B-902': 'vendido',
+                'B-903': 'vendido', 'B-904': 'vendido', 'B-905': 'vendido', 'B-906': 'vendido',
+                'B-907': 'vendido', 'B-908': 'vendido', 'B-1001': 'vendido', 'B-1002': 'vendido',
+                'B-1007': 'mirror', 'B-1008': 'vendido',
                 
-                'C-1': 'disponivel', 'C-2': 'disponivel', 'C-4': 'disponivel', 'C-6': 'disponivel',
-                'C-7': 'disponivel', 'C-8': 'disponivel', 'C-101': 'disponivel', 'C-102': 'disponivel',
-                'C-103': 'disponivel', 'C-104': 'disponivel', 'C-105': 'disponivel', 'C-106': 'disponivel',
-                'C-107': 'disponivel', 'C-108': 'disponivel', 'C-201': 'disponivel', 'C-202': 'disponivel',
-                'C-203': 'disponivel', 'C-204': 'disponivel', 'C-205': 'disponivel', 'C-206': 'disponivel',
-                'C-207': 'disponivel', 'C-208': 'disponivel', 'C-301': 'disponivel', 'C-302': 'disponivel',
-                'C-303': 'disponivel', 'C-304': 'disponivel', 'C-305': 'disponivel', 'C-306': 'disponivel',
-                'C-307': 'disponivel', 'C-308': 'disponivel', 'C-401': 'disponivel', 'C-402': 'disponivel',
-                'C-403': 'disponivel', 'C-404': 'disponivel', 'C-405': 'disponivel', 'C-406': 'disponivel',
-                'C-407': 'disponivel', 'C-408': 'disponivel', 'C-501': 'disponivel', 'C-502': 'disponivel',
-                'C-503': 'disponivel', 'C-504': 'disponivel', 'C-505': 'disponivel', 'C-506': 'disponivel',
-                'C-507': 'disponivel', 'C-508': 'disponivel', 'C-601': 'disponivel', 'C-602': 'disponivel',
-                'C-603': 'disponivel', 'C-604': 'disponivel', 'C-605': 'disponivel', 'C-606': 'disponivel',
-                'C-607': 'disponivel', 'C-608': 'disponivel', 'C-701': 'disponivel', 'C-702': 'disponivel',
-                'C-703': 'disponivel', 'C-704': 'disponivel', 'C-705': 'disponivel', 'C-706': 'disponivel',
-                'C-707': 'disponivel', 'C-708': 'disponivel', 'C-801': 'disponivel', 'C-802': 'disponivel',
-                'C-803': 'disponivel', 'C-804': 'disponivel', 'C-805': 'disponivel', 'C-806': 'disponivel',
-                'C-807': 'disponivel', 'C-808': 'disponivel', 'C-901': 'disponivel', 'C-902': 'disponivel',
-                'C-903': 'disponivel', 'C-904': 'disponivel', 'C-905': 'disponivel', 'C-906': 'disponivel',
-                'C-907': 'disponivel', 'C-908': 'disponivel', 'C-1001': 'disponivel', 'C-1002': 'disponivel',
-                'C-1003': 'disponivel', 'C-1004': 'disponivel',
+                // Bloco C
+                'C-1': 'vendido', 'C-2': 'vendido', 'C-4': 'vendido', 'C-6': 'vendido',
+                'C-7': 'vendido', 'C-8': 'vendido', 'C-101': 'disponivel', 'C-102': 'quitado',
+                'C-103': 'vendido', 'C-104': 'vendido', 'C-105': 'vendido', 'C-106': 'vendido',
+                'C-107': 'disponivel', 'C-108': 'disponivel', 'C-201': 'disponivel', 'C-202': 'vendido',
+                'C-203': 'vendido', 'C-204': 'vendido', 'C-205': 'vendido', 'C-206': 'vendido',
+                'C-207': 'disponivel', 'C-208': 'vendido', 'C-301': 'vendido', 'C-302': 'vendido',
+                'C-303': 'vendido', 'C-304': 'vendido', 'C-305': 'vendido', 'C-306': 'vendido',
+                'C-307': 'vendido', 'C-308': 'vendido', 'C-401': 'vendido', 'C-402': 'vendido',
+                'C-403': 'vendido', 'C-404': 'vendido', 'C-405': 'vendido', 'C-406': 'vendido',
+                'C-407': 'vendido', 'C-408': 'vendido', 'C-501': 'quitado', 'C-502': 'vendido',
+                'C-503': 'vendido', 'C-504': 'vendido', 'C-505': 'vendido', 'C-506': 'vendido',
+                'C-507': 'vendido', 'C-508': 'vendido', 'C-601': 'vendido', 'C-602': 'vendido',
+                'C-603': 'vendido', 'C-604': 'quitado', 'C-605': 'vendido', 'C-606': 'vendido',
+                'C-607': 'vendido', 'C-608': 'vendido', 'C-701': 'vendido', 'C-702': 'vendido',
+                'C-703': 'vendido', 'C-704': 'vendido', 'C-705': 'vendido', 'C-706': 'vendido',
+                'C-707': 'vendido', 'C-708': 'vendido', 'C-801': 'vendido', 'C-802': 'vendido',
+                'C-803': 'vendido', 'C-804': 'vendido', 'C-805': 'vendido', 'C-806': 'vendido',
+                'C-807': 'vendido', 'C-808': 'quitado', 'C-901': 'vendido', 'C-902': 'vendido',
+                'C-903': 'vendido', 'C-904': 'vendido', 'C-905': 'vendido', 'C-906': 'vendido',
+                'C-907': 'vendido', 'C-908': 'vendido', 'C-1001': 'disponivel', 'C-1002': 'vendido',
+                'C-1007': 'disponivel', 'C-1008': 'vendido',
                 
-                'D-1': 'disponivel', 'D-2': 'disponivel', 'D-4': 'disponivel', 'D-6': 'disponivel',
-                'D-7': 'disponivel', 'D-8': 'disponivel', 'D-101': 'disponivel', 'D-102': 'disponivel',
-                'D-103': 'disponivel', 'D-104': 'disponivel', 'D-105': 'disponivel', 'D-106': 'disponivel',
-                'D-107': 'disponivel', 'D-108': 'disponivel', 'D-201': 'disponivel', 'D-202': 'disponivel',
-                'D-203': 'disponivel', 'D-204': 'disponivel', 'D-205': 'disponivel', 'D-206': 'disponivel',
-                'D-207': 'disponivel', 'D-208': 'disponivel', 'D-301': 'disponivel', 'D-302': 'disponivel',
-                'D-303': 'disponivel', 'D-304': 'disponivel', 'D-305': 'disponivel', 'D-306': 'disponivel',
-                'D-307': 'disponivel', 'D-308': 'disponivel', 'D-401': 'disponivel', 'D-402': 'disponivel',
-                'D-403': 'disponivel', 'D-404': 'disponivel', 'D-405': 'disponivel', 'D-406': 'disponivel',
-                'D-407': 'disponivel', 'D-408': 'disponivel', 'D-501': 'disponivel', 'D-502': 'disponivel',
-                'D-503': 'disponivel', 'D-504': 'disponivel', 'D-505': 'disponivel', 'D-506': 'disponivel',
-                'D-507': 'disponivel', 'D-508': 'disponivel', 'D-601': 'disponivel', 'D-602': 'disponivel',
-                'D-603': 'disponivel', 'D-604': 'disponivel', 'D-605': 'disponivel', 'D-606': 'disponivel',
-                'D-607': 'disponivel', 'D-608': 'disponivel', 'D-701': 'disponivel', 'D-702': 'disponivel',
-                'D-703': 'disponivel', 'D-704': 'disponivel', 'D-705': 'disponivel', 'D-706': 'disponivel',
-                'D-707': 'disponivel', 'D-708': 'disponivel', 'D-801': 'disponivel', 'D-802': 'disponivel',
-                'D-803': 'disponivel', 'D-804': 'disponivel', 'D-805': 'disponivel', 'D-806': 'disponivel',
-                'D-807': 'disponivel', 'D-808': 'disponivel', 'D-901': 'disponivel', 'D-902': 'disponivel',
-                'D-903': 'disponivel', 'D-904': 'disponivel', 'D-905': 'disponivel', 'D-906': 'disponivel',
-                'D-907': 'disponivel', 'D-908': 'disponivel', 'D-1001': 'disponivel', 'D-1002': 'disponivel',
-                'D-1003': 'disponivel', 'D-1004': 'disponivel', 'D-1005': 'disponivel', 'D-1006': 'disponivel',
-                'D-1007': 'disponivel', 'D-1008': 'disponivel', 'D-1101': 'disponivel', 'D-1102': 'disponivel',
-                'D-1103': 'disponivel', 'D-1104': 'disponivel'
+                // Bloco D
+                'D-1': 'vendido', 'D-2': 'vendido', 'D-4': 'vendido', 'D-6': 'vendido',
+                'D-7': 'vendido', 'D-8': 'vendido', 'D-101': 'vendido', 'D-102': 'vendido',
+                'D-103': 'vendido', 'D-104': 'vendido', 'D-105': 'vendido', 'D-106': 'vendido',
+                'D-107': 'quitado', 'D-108': 'vendido', 'D-201': 'vendido', 'D-202': 'vendido',
+                'D-203': 'vendido', 'D-204': 'vendido', 'D-205': 'vendido', 'D-206': 'vendido',
+                'D-207': 'vendido', 'D-208': 'vendido', 'D-301': 'vendido', 'D-302': 'vendido',
+                'D-303': 'vendido', 'D-304': 'vendido', 'D-305': 'vendido', 'D-306': 'vendido',
+                'D-307': 'vendido', 'D-308': 'vendido', 'D-401': 'vendido', 'D-402': 'vendido',
+                'D-403': 'vendido', 'D-404': 'vendido', 'D-405': 'vendido', 'D-406': 'vendido',
+                'D-407': 'vendido', 'D-408': 'vendido', 'D-501': 'vendido', 'D-502': 'vendido',
+                'D-503': 'vendido', 'D-504': 'vendido', 'D-505': 'vendido', 'D-506': 'vendido',
+                'D-507': 'vendido', 'D-508': 'vendido', 'D-601': 'vendido', 'D-602': 'vendido',
+                'D-603': 'vendido', 'D-604': 'vendido', 'D-605': 'vendido', 'D-606': 'vendido',
+                'D-607': 'vendido', 'D-608': 'vendido', 'D-701': 'vendido', 'D-702': 'vendido',
+                'D-703': 'vendido', 'D-704': 'vendido', 'D-705': 'quitado', 'D-706': 'vendido',
+                'D-707': 'vendido', 'D-708': 'vendido', 'D-801': 'vendido', 'D-802': 'vendido',
+                'D-803': 'vendido', 'D-804': 'vendido', 'D-805': 'vendido', 'D-806': 'vendido',
+                'D-807': 'vendido', 'D-808': 'quitado', 'D-901': 'vendido', 'D-902': 'vendido',
+                'D-903': 'vendido', 'D-904': 'vendido', 'D-905': 'vendido', 'D-906': 'quitado',
+                'D-907': 'vendido', 'D-908': 'vendido', 'D-1001': 'vendido', 'D-1002': 'vendido',
+                'D-1003': 'vendido', 'D-1004': 'vendido', 'D-1005': 'vendido', 'D-1006': 'vendido',
+                'D-1007': 'vendido', 'D-1008': 'vendido', 'D-1101': 'disponivel', 'D-1102': 'vendido',
+                'D-1107': 'vendido', 'D-1108': 'vendido'
             };
 
-            // Valores de venda simplificados
+            // Mapeamento dos valores reais de venda do PDF
             const realSaleValues = {
                 // Bloco A
                 'A-1': 'R$ 729.145,75', 'A-2': 'R$ 723.756,39', 'A-4': 'R$ 590.666,30', 'A-6': 'R$ 590.666,30',
@@ -711,89 +803,89 @@
                 'A-403': 'R$ 506.930,00', 'A-404': 'R$ 497.732,35', 'A-405': 'R$ 506.929,00', 'A-406': 'R$ 497.732,35',
                 'A-407': 'R$ 653.749,48', 'A-408': 'R$ 643.388,48', 'A-501': 'R$ 658.608,16', 'A-502': 'R$ 648.210,16',
                 'A-503': 'R$ 510.601,00', 'A-504': 'R$ 501.377,12', 'A-505': 'R$ 510.601,00', 'A-506': 'R$ 501.377,12',
-                'A-507': 'R$ 658.608,16', 'A-508': 'R$ 648.210,74', 'A-601': 'R$ 663.467,84', 'A-602': 'R$ 653.029,84',
-                'A-603': 'R$ 514.277,00', 'A-604': 'R$ 505.023,89', 'A-605': 'R$ 514.277,00', 'A-606': 'R$ 505.023,89',
-                'A-607': 'R$ 663.467,84', 'A-608': 'R$ 653.028,90', 'A-701': 'R$ 668.367,50', 'A-702': 'R$ 660.720,85',
-                'A-703': 'R$ 517.980,00', 'A-704': 'R$ 508.698,53', 'A-705': 'R$ 517.980,00', 'A-706': 'R$ 508.699,44',
-                'A-707': 'R$ 668.367,85', 'A-708': 'R$ 657.889,85', 'A-801': 'R$ 674.540,89', 'A-802': 'R$ 666.845,01',
-                'A-803': 'R$ 522.647,00', 'A-804': 'R$ 513.328,31', 'A-805': 'R$ 522.647,00', 'A-806': 'R$ 513.327,84',
-                'A-807': 'R$ 674.541,01', 'A-808': 'R$ 683.223,01', 'A-901': 'R$ 682.319,89', 'A-902': 'R$ 674.563,89',
-                'A-903': 'R$ 528.778,00', 'A-904': 'R$ 519.408,07', 'A-905': 'R$ 528.778,00', 'A-906': 'R$ 519.408,07',
-                'A-907': 'R$ 682.319,89', 'A-908': 'R$ 671.729,89', 'A-1001': 'R$ 690.849,53', 'A-1002': 'R$ 680.194,53',
-                'A-1003': 'R$ 534.985,06', 'A-1004': 'R$ 525.565,94', 'A-1005': 'R$ 534.985,06', 'A-1006': 'R$ 525.566,06',
-                'A-1007': 'R$ 690.849,53', 'A-1008': 'R$ 680.194,53', 'A-1101': 'R$ 1.244.719,00', 'A-1102': 'R$ 1.232.500,00',
-                'A-1103': 'R$ 1.244.719,00', 'A-1104': 'R$ 1.232.500,00',
+                'A-507': 'R$ 677.637,67', 'A-508': 'R$ 658.871,07', 'A-601': 'R$ 707.066,11', 'A-602': 'R$ 663.692,45',
+                'A-603': 'R$ 564.778,87', 'A-604': 'R$ 526.271,34', 'A-605': 'R$ 564.778,87', 'A-606': 'R$ 526.271,34',
+                'A-607': 'R$ 707.066,11', 'A-608': 'R$ 663.692,45', 'A-701': 'R$ 712.062,79', 'A-702': 'R$ 668.511,88',
+                'A-703': 'R$ 568.649,52', 'A-704': 'R$ 530.010,87', 'A-705': 'R$ 568.649,52', 'A-706': 'R$ 530.010,87',
+                'A-707': 'R$ 691.402,02', 'A-708': 'R$ 668.511,88', 'A-801': 'R$ 717.052,77', 'A-802': 'R$ 673.332,60',
+                'A-803': 'R$ 572.521,16', 'A-804': 'R$ 533.749,36', 'A-805': 'R$ 572.521,16', 'A-806': 'R$ 533.749,40',
+                'A-807': 'R$ 717.052,77', 'A-808': 'R$ 683.223,01', 'A-901': 'R$ 722.045,77', 'A-902': 'R$ 678.154,32',
+                'A-903': 'R$ 580.581,02', 'A-904': 'R$ 537.486,98', 'A-905': 'R$ 576.392,81', 'A-906': 'R$ 537.486,98',
+                'A-907': 'R$ 701.385,00', 'A-908': 'R$ 671.729,89', 'A-1001': 'R$ 727.037,80', 'A-1002': 'R$ 682.973,08',
+                'A-1003': 'R$ 580.265,46', 'A-1004': 'R$ 541.227,52', 'A-1005': 'R$ 580.265,46', 'A-1006': 'R$ 541.227,52',
+                'A-1007': 'R$ 706.379,00', 'A-1008': 'R$ 682.973,08', 'A-1101': 'R$ 1.233.653,00', 'A-1102': 'R$ 1.233.653,00',
+                'A-1107': 'R$ 1.233.653,00', 'A-1108': 'R$ 1.233.653,00',
                 
                 // Bloco B
-                'B-1': 'R$ 723.566,02', 'B-2': 'R$ 729.334,38', 'B-4': 'R$ 590.666,30', 'B-6': 'R$ 590.666,30',
+                'B-1': 'R$ 723.566,02', 'B-2': 'R$ 729.334,38', 'B-4': 'R$ 590.667,30', 'B-6': 'R$ 590.666,30',
                 'B-7': 'R$ 723.565,75', 'B-8': 'R$ 729.334,38', 'B-101': 'R$ 613.828,14', 'B-102': 'R$ 623.904,14',
                 'B-103': 'R$ 483.861,79', 'B-104': 'R$ 492.944,00', 'B-105': 'R$ 483.861,79', 'B-106': 'R$ 492.944,00',
                 'B-107': 'R$ 613.828,14', 'B-108': 'R$ 623.904,20', 'B-201': 'R$ 621.423,58', 'B-202': 'R$ 631.559,58',
-                'B-203': 'R$ 489.633,10', 'B-204': 'R$ 498.762,00', 'B-205': 'R$ 489.633,19', 'B-206': 'R$ 498.762,00',
+                'B-203': 'R$ 489.633,19', 'B-204': 'R$ 498.762,00', 'B-205': 'R$ 489.633,19', 'B-206': 'R$ 498.762,00',
                 'B-207': 'R$ 621.423,58', 'B-208': 'R$ 628.727,58', 'B-301': 'R$ 638.607,12', 'B-302': 'R$ 648.929,12',
                 'B-303': 'R$ 494.115,46', 'B-304': 'R$ 503.282,00', 'B-305': 'R$ 494.115,46', 'B-306': 'R$ 503.282,00',
-                'B-307': 'R$ 638.607,12', 'B-308': 'R$ 648.929,12', 'B-401': 'R$ 643.388,48', 'B-402': 'R$ 653.749,48',
+                'B-307': 'R$ 638.607,12', 'B-308': 'R$ 648.929,12', 'B-401': 'R$ 643.388,48', 'B-402': 'R$ 653.749,45',
                 'B-403': 'R$ 497.732,35', 'B-404': 'R$ 506.929,00', 'B-405': 'R$ 497.732,08', 'B-406': 'R$ 506.930,00',
                 'B-407': 'R$ 643.388,48', 'B-408': 'R$ 653.749,48', 'B-501': 'R$ 648.210,49', 'B-502': 'R$ 658.608,16',
                 'B-503': 'R$ 501.377,12', 'B-504': 'R$ 510.601,00', 'B-505': 'R$ 501.377,12', 'B-506': 'R$ 510.601,00',
-                'B-507': 'R$ 648.210,16', 'B-508': 'R$ 658.608,16', 'B-601': 'R$ 653.029,84', 'B-602': 'R$ 663.467,84',
+                'B-507': 'R$ 648.210,16', 'B-508': 'R$ 658.608,16', 'B-601': 'R$ 653.029,84', 'B-602': 'R$ 707.066,11',
                 'B-603': 'R$ 505.023,89', 'B-604': 'R$ 514.277,00', 'B-605': 'R$ 505.023,89', 'B-606': 'R$ 514.277,00',
-                'B-607': 'R$ 653.029,11', 'B-608': 'R$ 663.467,84', 'B-701': 'R$ 657.889,85', 'B-702': 'R$ 668.367,85',
-                'B-703': 'R$ 508.699,53', 'B-704': 'R$ 517.980,00', 'B-705': 'R$ 508.698,53', 'B-706': 'R$ 517.980,00',
-                'B-707': 'R$ 657.890,12', 'B-708': 'R$ 668.366,85', 'B-801': 'R$ 664.011,89', 'B-802': 'R$ 674.541,01',
+                'B-607': 'R$ 653.029,11', 'B-608': 'R$ 663.467,84', 'B-701': 'R$ 657.889,85', 'B-702': 'R$ 707.066,11',
+                'B-703': 'R$ 508.698,53', 'B-704': 'R$ 517.980,00', 'B-705': 'R$ 508.698,53', 'B-706': 'R$ 515.630,44',
+                'B-707': 'R$ 657.890,12', 'B-708': 'R$ 663.467,84', 'B-801': 'R$ 664.011,89', 'B-802': 'R$ 707.066,11',
                 'B-803': 'R$ 513.327,84', 'B-804': 'R$ 522.647,00', 'B-805': 'R$ 513.327,84', 'B-806': 'R$ 522.647,00',
-                'B-807': 'R$ 664.012,01', 'B-808': 'R$ 674.541,01', 'B-901': 'R$ 671.729,89', 'B-902': 'R$ 682.319,89',
-                'B-903': 'R$ 519.408,07', 'B-904': 'R$ 528.778,00', 'B-905': 'R$ 519.408,07', 'B-906': 'R$ 528.778,00',
-                'B-907': 'R$ 671.730,00', 'B-908': 'R$ 682.319,89', 'B-1001': 'R$ 1.229.667,79', 'B-1002': 'R$ 1.244.719,00',
-                'B-1003': 'R$ 1.232.500,00', 'B-1004': 'R$ 1.247.550,92',
+                'B-807': 'R$ 664.012,01', 'B-808': 'R$ 674.541,01', 'B-901': 'R$ 671.729,89', 'B-902': 'R$ 722.045,77',
+                'B-903': 'R$ 519.408,07', 'B-904': 'R$ 576.392,81', 'B-905': 'R$ 519.408,07', 'B-906': 'R$ 576.392,81',
+                'B-907': 'R$ 671.730,00', 'B-908': 'R$ 722.045,77', 'B-1001': 'R$ 1.229.667,79', 'B-1002': 'R$ 1.244.719,00',
+                'B-1007': 'R$ 1.232.500,00', 'B-1008': 'R$ 1.247.550,92',
                 
                 // Bloco C
                 'C-1': 'R$ 723.565,75', 'C-2': 'R$ 729.333,60', 'C-4': 'R$ 590.667,30', 'C-6': 'R$ 590.666,30',
-                'C-7': 'R$ 723.565,75', 'C-8': 'R$ 729.334,38', 'C-101': 'R$ 613.828,14', 'C-102': 'R$ 623.904,14',
-                'C-103': 'R$ 483.861,79', 'C-104': 'R$ 492.944,00', 'C-105': 'R$ 483.861,79', 'C-106': 'R$ 492.944,00',
-                'C-107': 'R$ 613.828,14', 'C-108': 'R$ 623.904,14', 'C-201': 'R$ 621.423,58', 'C-202': 'R$ 628.727,58',
-                'C-203': 'R$ 489.633,19', 'C-204': 'R$ 498.762,00', 'C-205': 'R$ 489.633,19', 'C-206': 'R$ 498.762,00',
-                'C-207': 'R$ 621.423,58', 'C-208': 'R$ 628.727,58', 'C-301': 'R$ 641.438,12', 'C-302': 'R$ 648.929,12',
-                'C-303': 'R$ 494.115,46', 'C-304': 'R$ 503.282,00', 'C-305': 'R$ 494.115,46', 'C-306': 'R$ 503.282,00',
-                'C-307': 'R$ 638.607,12', 'C-308': 'R$ 648.929,12', 'C-401': 'R$ 643.388,48', 'C-402': 'R$ 653.749,48',
-                'C-403': 'R$ 497.732,35', 'C-404': 'R$ 506.929,00', 'C-405': 'R$ 497.732,35', 'C-406': 'R$ 506.929,00',
-                'C-407': 'R$ 643.388,48', 'C-408': 'R$ 653.749,48', 'C-501': 'R$ 647.808,32', 'C-502': 'R$ 658.608,16',
-                'C-503': 'R$ 501.377,12', 'C-504': 'R$ 510.601,00', 'C-505': 'R$ 501.377,12', 'C-506': 'R$ 510.601,00',
-                'C-507': 'R$ 648.210,16', 'C-508': 'R$ 658.608,16', 'C-601': 'R$ 653.029,84', 'C-602': 'R$ 663.467,84',
-                'C-603': 'R$ 505.024,08', 'C-604': 'R$ 514.277,00', 'C-605': 'R$ 505.023,89', 'C-606': 'R$ 514.277,00',
-                'C-607': 'R$ 655.863,84', 'C-608': 'R$ 663.467,84', 'C-701': 'R$ 660.720,85', 'C-702': 'R$ 668.367,21',
+                'C-7': 'R$ 723.565,75', 'C-8': 'R$ 729.334,38', 'C-101': 'R$ 585.615,55', 'C-102': 'R$ 623.904,14',
+                'C-103': 'R$ 524.758,87', 'C-104': 'R$ 517.836,87', 'C-105': 'R$ 524.758,87', 'C-106': 'R$ 517.836,87',
+                'C-107': 'R$ 585.615,55', 'C-108': 'R$ 623.904,14', 'C-201': 'R$ 590.610,75', 'C-202': 'R$ 628.727,58',
+                'C-203': 'R$ 528.631,52', 'C-204': 'R$ 521.651,52', 'C-205': 'R$ 528.631,52', 'C-206': 'R$ 521.651,52',
+                'C-207': 'R$ 590.610,75', 'C-208': 'R$ 628.727,58', 'C-301': 'R$ 639.207,65', 'C-302': 'R$ 670.207,65',
+                'C-303': 'R$ 532.502,16', 'C-304': 'R$ 525.466,16', 'C-305': 'R$ 532.502,16', 'C-306': 'R$ 525.466,16',
+                'C-307': 'R$ 639.207,65', 'C-308': 'R$ 649.228,67', 'C-401': 'R$ 676.421,98', 'C-402': 'R$ 654.050,62',
+                'C-403': 'R$ 536.374,81', 'C-404': 'R$ 529.277,81', 'C-405': 'R$ 536.374,81', 'C-406': 'R$ 529.277,81',
+                'C-407': 'R$ 697.082,75', 'C-408': 'R$ 654.050,62', 'C-501': 'R$ 647.808,32', 'C-502': 'R$ 672.192,66',
+                'C-503': 'R$ 540.247,45', 'C-504': 'R$ 522.535,76', 'C-505': 'R$ 540.247,45', 'C-506': 'R$ 533.094,45',
+                'C-507': 'R$ 648.210,16', 'C-508': 'R$ 658.608,16', 'C-601': 'R$ 653.029,84', 'C-602': 'R$ 686.407,34',
+                'C-603': 'R$ 505.024,08', 'C-604': 'R$ 536.909,10', 'C-605': 'R$ 505.023,89', 'C-606': 'R$ 536.908,10',
+                'C-607': 'R$ 655.863,84', 'C-608': 'R$ 663.467,84', 'C-701': 'R$ 660.720,85', 'C-702': 'R$ 707.066,11',
                 'C-703': 'R$ 508.698,53', 'C-704': 'R$ 517.980,00', 'C-705': 'R$ 508.699,15', 'C-706': 'R$ 517.980,00',
-                'C-707': 'R$ 633.360,15', 'C-708': 'R$ 668.367,85', 'C-801': 'R$ 664.012,26', 'C-802': 'R$ 674.541,01',
-                'C-803': 'R$ 513.327,84', 'C-804': 'R$ 522.648,00', 'C-805': 'R$ 513.327,84', 'C-806': 'R$ 522.647,00',
-                'C-807': 'R$ 664.012,01', 'C-808': 'R$ 674.541,01', 'C-901': 'R$ 671.729,89', 'C-902': 'R$ 682.319,89',
-                'C-903': 'R$ 519.408,10', 'C-904': 'R$ 528.778,00', 'C-905': 'R$ 519.408,07', 'C-906': 'R$ 528.777,00',
-                'C-907': 'R$ 671.730,00', 'C-908': 'R$ 682.319,89', 'C-1001': 'R$ 1.232.500,00', 'C-1002': 'R$ 1.244.719,00',
-                'C-1003': 'R$ 1.232.500,00', 'C-1004': 'R$ 1.244.719,00',
+                'C-707': 'R$ 633.360,15', 'C-708': 'R$ 663.467,84', 'C-801': 'R$ 664.012,26', 'C-802': 'R$ 707.066,11',
+                'C-803': 'R$ 551.862,39', 'C-804': 'R$ 533.749,40', 'C-805': 'R$ 551.862,39', 'C-806': 'R$ 533.749,40',
+                'C-807': 'R$ 664.012,01', 'C-808': 'R$ 674.541,01', 'C-901': 'R$ 701.385,00', 'C-902': 'R$ 722.045,77',
+                'C-903': 'R$ 519.408,07', 'C-904': 'R$ 576.392,81', 'C-905': 'R$ 519.408,07', 'C-906': 'R$ 576.392,81',
+                'C-907': 'R$ 701.385,00', 'C-908': 'R$ 722.045,77', 'C-1001': 'R$ 1.232.500,00', 'C-1002': 'R$ 1.244.719,00',
+                'C-1007': 'R$ 1.232.500,00', 'C-1008': 'R$ 1.244.719,00',
                 
                 // Bloco D
                 'D-1': 'R$ 723.565,75', 'D-2': 'R$ 729.334,38', 'D-4': 'R$ 590.667,30', 'D-6': 'R$ 590.667,30',
-                'D-7': 'R$ 723.565,75', 'D-8': 'R$ 729.333,38', 'D-101': 'R$ 610.996,14', 'D-102': 'R$ 623.904,14',
-                'D-103': 'R$ 483.861,79', 'D-104': 'R$ 492.944,00', 'D-105': 'R$ 483.861,79', 'D-106': 'R$ 492.944,00',
-                'D-107': 'R$ 598.900,14', 'D-108': 'R$ 621.072,14', 'D-201': 'R$ 621.423,60', 'D-202': 'R$ 628.727,58',
-                'D-203': 'R$ 489.633,19', 'D-204': 'R$ 498.763,00', 'D-205': 'R$ 489.633,19', 'D-206': 'R$ 498.763,00',
-                'D-207': 'R$ 606.342,58', 'D-208': 'R$ 631.559,58', 'D-301': 'R$ 638.607,12', 'D-302': 'R$ 648.929,12',
-                'D-303': 'R$ 494.115,46', 'D-304': 'R$ 503.282,00', 'D-305': 'R$ 494.115,46', 'D-306': 'R$ 503.282,00',
-                'D-307': 'R$ 608.378,12', 'D-308': 'R$ 648.929,12', 'D-401': 'R$ 643.388,48', 'D-402': 'R$ 653.749,48',
-                'D-403': 'R$ 497.732,35', 'D-404': 'R$ 506.929,00', 'D-405': 'R$ 497.732,35', 'D-406': 'R$ 506.929,00',
-                'D-407': 'R$ 630.644,48', 'D-408': 'R$ 653.749,48', 'D-501': 'R$ 648.210,16', 'D-502': 'R$ 658.608,16',
-                'D-503': 'R$ 501.377,12', 'D-504': 'R$ 510.601,00', 'D-505': 'R$ 501.377,12', 'D-506': 'R$ 510.601,00',
-                'D-507': 'R$ 635.368,16', 'D-508': 'R$ 658.608,16', 'D-601': 'R$ 653.029,84', 'D-602': 'R$ 663.467,84',
-                'D-603': 'R$ 505.024,42', 'D-604': 'R$ 514.277,00', 'D-605': 'R$ 505.023,89', 'D-606': 'R$ 514.277,00',
-                'D-607': 'R$ 640.275,25', 'D-608': 'R$ 663.467,84', 'D-701': 'R$ 657.889,85', 'D-702': 'R$ 668.367,85',
+                'D-7': 'R$ 723.565,75', 'D-8': 'R$ 729.333,38', 'D-101': 'R$ 585.616,00', 'D-102': 'R$ 623.904,14',
+                'D-103': 'R$ 524.759,87', 'D-104': 'R$ 517.836,87', 'D-105': 'R$ 524.758,87', 'D-106': 'R$ 517.836,87',
+                'D-107': 'R$ 585.616,00', 'D-108': 'R$ 565.908,18', 'D-201': 'R$ 590.610,70', 'D-202': 'R$ 628.727,58',
+                'D-203': 'R$ 528.632,52', 'D-204': 'R$ 521.651,52', 'D-205': 'R$ 528.632,52', 'D-206': 'R$ 511.319,13',
+                'D-207': 'R$ 590.610,70', 'D-208': 'R$ 644.408,87', 'D-301': 'R$ 639.207,65', 'D-302': 'R$ 670.207,65',
+                'D-303': 'R$ 532.502,16', 'D-304': 'R$ 525.466,16', 'D-305': 'R$ 532.502,16', 'D-306': 'R$ 525.466,16',
+                'D-307': 'R$ 660.991,30', 'D-308': 'R$ 649.228,67', 'D-401': 'R$ 676.421,98', 'D-402': 'R$ 654.050,62',
+                'D-403': 'R$ 536.374,81', 'D-404': 'R$ 529.277,81', 'D-405': 'R$ 533.717,36', 'D-406': 'R$ 529.278,81',
+                'D-407': 'R$ 676.421,98', 'D-408': 'R$ 654.050,62', 'D-501': 'R$ 647.808,32', 'D-502': 'R$ 658.608,16',
+                'D-503': 'R$ 540.247,05', 'D-504': 'R$ 522.535,76', 'D-505': 'R$ 540.246,45', 'D-506': 'R$ 533.094,45',
+                'D-507': 'R$ 647.808,32', 'D-508': 'R$ 658.608,16', 'D-601': 'R$ 653.029,84', 'D-602': 'R$ 686.407,34',
+                'D-603': 'R$ 505.024,42', 'D-604': 'R$ 526.271,34', 'D-605': 'R$ 505.023,89', 'D-606': 'R$ 526.271,34',
+                'D-607': 'R$ 640.275,25', 'D-608': 'R$ 663.467,84', 'D-701': 'R$ 657.889,85', 'D-702': 'R$ 707.066,11',
                 'D-703': 'R$ 508.699,15', 'D-704': 'R$ 517.980,00', 'D-705': 'R$ 508.698,53', 'D-706': 'R$ 517.980,00',
-                'D-707': 'R$ 644.854,85', 'D-708': 'R$ 668.367,85', 'D-801': 'R$ 664.012,01', 'D-802': 'R$ 674.541,01',
-                'D-803': 'R$ 513.327,84', 'D-804': 'R$ 522.647,00', 'D-805': 'R$ 513.327,84', 'D-806': 'R$ 522.647,00',
-                'D-807': 'R$ 664.012,01', 'D-808': 'R$ 674.541,01', 'D-901': 'R$ 671.729,89', 'D-902': 'R$ 682.319,89',
-                'D-903': 'R$ 519.408,07', 'D-904': 'R$ 528.778,00', 'D-905': 'R$ 519.408,07', 'D-906': 'R$ 528.778,00',
-                'D-907': 'R$ 671.730,00', 'D-908': 'R$ 682.319,89', 'D-1001': 'R$ 1.232.500,00', 'D-1002': 'R$ 1.244.719,00',
-                'D-1003': 'R$ 1.232.500,00', 'D-1004': 'R$ 1.244.719,00', 'D-1005': 'R$ 1.232.500,00', 'D-1006': 'R$ 1.232.500,00',
-                'D-1007': 'R$ 1.232.500,00', 'D-1008': 'R$ 1.244.719,00', 'D-1101': 'R$ 1.232.500,00', 'D-1102': 'R$ 1.244.719,00',
-                'D-1103': 'R$ 1.232.500,00', 'D-1104': 'R$ 1.244.719,00'
+                'D-707': 'R$ 644.854,85', 'D-708': 'R$ 663.467,84', 'D-801': 'R$ 664.012,26', 'D-802': 'R$ 707.066,11',
+                'D-803': 'R$ 551.862,39', 'D-804': 'R$ 533.749,40', 'D-805': 'R$ 551.862,39', 'D-806': 'R$ 533.749,40',
+                'D-807': 'R$ 664.012,01', 'D-808': 'R$ 673.332,60', 'D-901': 'R$ 701.385,00', 'D-902': 'R$ 722.045,77',
+                'D-903': 'R$ 519.408,07', 'D-904': 'R$ 576.392,81', 'D-905': 'R$ 519.408,07', 'D-906': 'R$ 576.392,81',
+                'D-907': 'R$ 701.385,00', 'D-908': 'R$ 722.045,77', 'D-1001': 'R$ 706.379,00', 'D-1002': 'R$ 682.973,08',
+                'D-1003': 'R$ 559.605,69', 'D-1004': 'R$ 541.227,52', 'D-1005': 'R$ 559.605,69', 'D-1006': 'R$ 541.227,52',
+                'D-1007': 'R$ 706.379,00', 'D-1008': 'R$ 682.973,08', 'D-1101': 'R$ 1.233.653,00', 'D-1102': 'R$ 1.233.653,00',
+                'D-1107': 'R$ 1.233.653,00', 'D-1108': 'R$ 1.233.653,00'
             };
 
             // Sequência correta das unidades do térreo: 1, 2, 4, 6, 7, 8
@@ -810,9 +902,9 @@
                         // Corrigido para lidar com a numeração especial do 10º andar dos blocos B e C
                         let aptNumber;
                         if (floor === '11') {
-                            // Cobertura - numeração específica por bloco
+                            // Cobertura - numeração específica por bloco (A e D têm 4 unidades: 1101, 1102, 1107, 1108)
                             if (block === 'A' || block === 'D') {
-                                aptNumber = ['1101', '1102', '1103', '1104'][i-1];
+                                aptNumber = ['1101', '1102', '1107', '1108'][i-1];
                             } else {
                                 // Blocos B e C não têm andar 11 no structure, mas esta lógica está aqui para robustez
                                 aptNumber = (parseInt(floor) * 100 + i).toString();
@@ -873,7 +965,7 @@
                             vagas: vagas,
                             vagaNum: Math.floor(Math.random() * 500),
                             avaliacao: tipologia.includes('3Q') ? 
-                                (floor === '11' || (floor === '10' && (block === 'B' || block === 'C')) ? 'R$ 1.260.000,00' : 'R$ 829.000,00') : 
+                                (floor === '11' || (floor === '10' && (block === 'B' || block === 'C'))) ? 'R$ 1.260.000,00' : 'R$ 829.000,00' : 
                                 'R$ 619.000,00',
                             ba: 'R$ 37.653,00',
                             venda: valorVenda,
@@ -987,7 +1079,7 @@
                                 statusText = 'Disponível';
                                 break;
                             case 'vendido':
-                                statusClass = 'vendida';
+                                statusClass = 'vendido';
                                 statusText = 'Vendido';
                                 break;
                             case 'quitado':
@@ -1073,7 +1165,16 @@
         function generatePDF() {
             const { jsPDF } = window.jspdf;
             
-            // Remover controles temporariamente para a captura
+            // Mostrar indicador de carregamento
+            const button = document.getElementById('generatePdf');
+            const originalText = button.textContent;
+            button.textContent = 'Gerando PDF...';
+            button.disabled = true;
+            
+            // Adicionar classe especial para PDF
+            document.body.classList.add('pdf-generation');
+            
+            // Ocultar elementos que não devem aparecer no PDF
             const controls = document.querySelector('.controls');
             const legends = document.querySelector('.legends');
             const footer = document.querySelector('footer');
@@ -1082,23 +1183,37 @@
             legends.style.display = 'none';
             footer.style.display = 'none';
             
-            html2canvas(document.querySelector('.container'), {
-                scale: 0.8,
+            // Opções melhoradas para html2canvas
+            const options = {
+                scale: 1.2,
                 useCORS: true,
-                allowTaint: true
-            }).then(canvas => {
-                const imgData = canvas.toDataURL('image/png');
+                logging: false,
+                allowTaint: true,
+                backgroundColor: '#ffffff',
+                width: document.getElementById('blocksContainer').scrollWidth,
+                height: document.getElementById('blocksContainer').scrollHeight,
+                scrollX: 0,
+                scrollY: 0,
+                windowWidth: document.getElementById('blocksContainer').scrollWidth,
+                windowHeight: document.getElementById('blocksContainer').scrollHeight
+            };
+            
+            // Usar html2canvas para capturar o conteúdo completo
+            html2canvas(document.getElementById('blocksContainer'), options).then(canvas => {
+                const imgData = canvas.toDataURL('image/png', 1.0);
                 const pdf = new jsPDF('l', 'mm', 'a4');
                 
-                const imgWidth = 297;
-                const pageHeight = 210;
+                const imgWidth = 297; // Largura A4 em mm (landscape)
+                const pageHeight = 210; // Altura A4 em mm (landscape)
                 const imgHeight = (canvas.height * imgWidth) / canvas.width;
                 let heightLeft = imgHeight;
                 let position = 0;
                 
+                // Adicionar a primeira página
                 pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
                 heightLeft -= pageHeight;
                 
+                // Adicionar páginas adicionais se necessário
                 while (heightLeft >= 0) {
                     position = heightLeft - imgHeight;
                     pdf.addPage();
@@ -1106,12 +1221,35 @@
                     heightLeft -= pageHeight;
                 }
                 
-                pdf.save('alto-horizonte-espelho-vendas.pdf');
+                // Salvar o PDF
+                pdf.save('alto-do-horizonte-espelho-vendas.pdf');
                 
-                // Restaurar controles
+                // Restaurar elementos ocultos
                 controls.style.display = '';
                 legends.style.display = '';
                 footer.style.display = '';
+                
+                // Remover classe especial para PDF
+                document.body.classList.remove('pdf-generation');
+                
+                // Restaurar o botão
+                button.textContent = originalText;
+                button.disabled = false;
+            }).catch(error => {
+                console.error('Erro ao gerar PDF:', error);
+                
+                // Restaurar elementos ocultos
+                controls.style.display = '';
+                legends.style.display = '';
+                footer.style.display = '';
+                
+                // Remover classe especial para PDF
+                document.body.classList.remove('pdf-generation');
+                
+                // Restaurar o botão
+                button.textContent = originalText;
+                button.disabled = false;
+                alert('Ocorreu um erro ao gerar o PDF. Por favor, tente novamente.');
             });
         }
 
