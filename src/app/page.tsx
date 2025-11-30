@@ -92,7 +92,19 @@ export default function EspelhoVendas() {
         if (!response.ok) throw new Error('Falha ao carregar unidades');
         
         const data = await response.json();
-        setUnidades(data);
+        
+        // Handle different response formats
+        let unidadesData = [];
+        if (Array.isArray(data)) {
+          unidadesData = data;
+        } else if (data && data.unidades && Array.isArray(data.unidades)) {
+          unidadesData = data.unidades;
+        } else {
+          console.error('Resposta da API inválida:', data);
+          unidadesData = [];
+        }
+        
+        setUnidades(unidadesData);
       } catch (error) {
         console.error('Erro ao carregar unidades:', error);
         setUnidades([]);
@@ -106,7 +118,7 @@ export default function EspelhoVendas() {
 
   // Opções para filtros - memoizadas para performance
   const filterOptions = useMemo(() => {
-    if (unidades.length === 0) {
+    if (!Array.isArray(unidades) || unidades.length === 0) {
       return {
         disponibilidadeOptions: [],
         blocoOptions: [],
@@ -133,7 +145,7 @@ export default function EspelhoVendas() {
 
   // Unidades filtradas e ordenadas - memoizadas
   const filteredAndSortedUnidades = useMemo(() => {
-    if (unidades.length === 0) return []
+    if (!Array.isArray(unidades) || unidades.length === 0) return []
 
     let filtered = unidades.filter(unidade => {
       if (filters.search && !unidade.unidade.toLowerCase().includes(filters.search.toLowerCase())) {
@@ -183,7 +195,7 @@ export default function EspelhoVendas() {
 
   // Estatísticas - memoizadas
   const estatisticas = useMemo(() => {
-    if (unidades.length === 0) {
+    if (!Array.isArray(unidades) || unidades.length === 0) {
       return { 
         total: 0, 
         disponiveis: 0, 

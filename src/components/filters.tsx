@@ -247,7 +247,7 @@ export function Filters({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">Todos</SelectItem>
-                    {disponibilidadeOptions.map((option) => (
+                    {(disponibilidadeOptions || []).map((option) => (
                       <SelectItem key={option} value={option}>
                         <div className="flex items-center gap-2">
                           <div className={`w-2 h-2 rounded-full ${
@@ -282,7 +282,7 @@ export function Filters({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">Todos</SelectItem>
-                    {blocoOptions.map((option) => (
+                    {(blocoOptions || []).map((option) => (
                       <SelectItem key={option} value={option}>
                         <div className="flex items-center gap-2">
                           <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded flex items-center justify-center text-xs font-bold">
@@ -313,7 +313,7 @@ export function Filters({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">Todos</SelectItem>
-                    {andarOptions.map((option) => (
+                    {(andarOptions || []).map((option) => (
                       <SelectItem key={option} value={option}>
                         <div className="flex items-center gap-2">
                           <div className="w-6 h-6 bg-gray-100 text-gray-600 rounded flex items-center justify-center text-xs font-medium">
@@ -344,7 +344,7 @@ export function Filters({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">Todos</SelectItem>
-                    {tipologiaOptions.map((option) => (
+                    {(tipologiaOptions || []).map((option) => (
                       <SelectItem key={option} value={option}>
                         <div className="flex items-center gap-2">
                           <div className="w-6 h-6 bg-purple-100 text-purple-600 rounded flex items-center justify-center text-xs font-bold">
@@ -375,7 +375,7 @@ export function Filters({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">Todos</SelectItem>
-                    {posicaoSolOptions.map((option) => (
+                    {(posicaoSolOptions || []).map((option) => (
                       <SelectItem key={option} value={option}>
                         <div className="flex items-center gap-2">
                           <div className="w-6 h-6 bg-orange-100 text-orange-600 rounded flex items-center justify-center text-xs">

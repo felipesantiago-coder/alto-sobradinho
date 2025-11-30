@@ -84,7 +84,7 @@ export function StatusSummary({
         </div>
         
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          {statusData.map(({ key, count }) => {
+          {(statusData || []).map(({ key, count }) => {
             const config = statusConfig[key as keyof typeof statusConfig]
             const Icon = config.icon
             const percentage = total > 0 ? ((count / total) * 100).toFixed(1) : '0'
