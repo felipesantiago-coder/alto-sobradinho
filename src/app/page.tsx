@@ -88,7 +88,7 @@ export default function EspelhoVendas() {
       try {
         setLoading(true);
         
-        const response = await fetch(`/api/unidades-static?empreendimento=${empreendimentoSelecionado}`);
+        const response = await fetch(`/api/unidades-static?empreendimento=${empreendimentoSelecionado}&limit=1000`);
         if (!response.ok) throw new Error('Falha ao carregar unidades');
         
         const data = await response.json();

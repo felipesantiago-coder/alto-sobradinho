@@ -78,7 +78,7 @@ export default function EmpreendimentoPage() {
       setLoading(true)
       setError(null)
       
-      const response = await fetch(`/api/unidades-static?empreendimento=${slug}`)
+      const response = await fetch(`/api/unidades-static?empreendimento=${slug}&limit=1000`)
       if (!response.ok) throw new Error('Erro ao carregar unidades')
       
       const data = await response.json()
