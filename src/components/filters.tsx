@@ -90,7 +90,7 @@ export function Filters({
   const activeFiltersCount = Object.values(filters).filter(value => value !== '').length
 
   const updateFilter = (key: string, value: string) => {
-    const newFilters = { ...filters, [key]: value }
+    const newFilters = { ...filters, [key]: value === 'all' ? '' : value }
     setFilters(newFilters)
     onFiltersChange(newFilters)
   }
@@ -246,7 +246,7 @@ export function Filters({
                     <SelectValue placeholder="Todos" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todos</SelectItem>
+                    <SelectItem value="all">Todos</SelectItem>
                     {(disponibilidadeOptions || []).map((option) => (
                       <SelectItem key={option} value={option}>
                         <div className="flex items-center gap-2">
@@ -281,7 +281,7 @@ export function Filters({
                     <SelectValue placeholder="Todos" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todos</SelectItem>
+                    <SelectItem value="all">Todos</SelectItem>
                     {(blocoOptions || []).map((option) => (
                       <SelectItem key={option} value={option}>
                         <div className="flex items-center gap-2">
@@ -312,7 +312,7 @@ export function Filters({
                     <SelectValue placeholder="Todos" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todos</SelectItem>
+                    <SelectItem value="all">Todos</SelectItem>
                     {(andarOptions || []).map((option) => (
                       <SelectItem key={option} value={option}>
                         <div className="flex items-center gap-2">
@@ -343,7 +343,7 @@ export function Filters({
                     <SelectValue placeholder="Todos" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todos</SelectItem>
+                    <SelectItem value="all">Todos</SelectItem>
                     {(tipologiaOptions || []).map((option) => (
                       <SelectItem key={option} value={option}>
                         <div className="flex items-center gap-2">
@@ -374,7 +374,7 @@ export function Filters({
                     <SelectValue placeholder="Todos" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todos</SelectItem>
+                    <SelectItem value="all">Todos</SelectItem>
                     {(posicaoSolOptions || []).map((option) => (
                       <SelectItem key={option} value={option}>
                         <div className="flex items-center gap-2">
