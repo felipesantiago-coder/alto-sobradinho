@@ -8,16 +8,20 @@ const nextConfig: NextConfig = {
   // Otimizações para Vercel
   compress: true,
   poweredByHeader: false,
-  // Configurações de imagem para Vercel
+  // Configurações de imagem para Vercel (atualizado)
   images: {
-    domains: ['z-cdn.chatglm.cn'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'z-cdn.chatglm.cn',
+        port: '',
+        pathname: '/**',
+      },
+    ],
     formats: ['image/webp', 'image/avif'],
   },
   // Manter configurações existentes
   reactStrictMode: true,
-  eslint: {
-    ignoreDuringBuilds: false,
-  },
 };
 
 export default nextConfig;
