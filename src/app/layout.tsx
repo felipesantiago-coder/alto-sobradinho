@@ -14,6 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://alto-sobradinho.vercel.app'),
   title: "Alto Sobradinho - Disponibilidade",
   description: "Espelho de vendas dos empreendimentos Alto da Alvorada e Alto do Horizonte. Consulte em tempo real a disponibilidade de unidades, valores e status.",
   keywords: ["Alto Sobradinho", "Disponibilidade", "Vendas", "Imobiliário", "Alto da Alvorada", "Alto do Horizonte", "Next.js", "TypeScript", "React"],
@@ -27,11 +28,25 @@ export const metadata: Metadata = {
     url: "https://alto-sobradinho.vercel.app",
     siteName: "Alto Sobradinho",
     type: "website",
+    images: [
+      {
+        url: "/alto-sobradinho-share.jpg",
+        width: 1024,
+        height: 1024,
+        alt: "Alto Sobradinho - Empreendimentos de Alto Padrão",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Alto Sobradinho - Disponibilidade",
     description: "Espelho de vendas em tempo real dos empreendimentos Alto da Alvorada e Alto do Horizonte",
+    images: {
+      url: "/alto-sobradinho-share.jpg",
+      width: 1024,
+      height: 1024,
+      alt: "Alto Sobradinho - Empreendimentos de Alto Padrão",
+    },
   },
 };
 
