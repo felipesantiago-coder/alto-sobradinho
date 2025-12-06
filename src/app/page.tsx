@@ -8,6 +8,7 @@ import { UnidadeCard } from '@/components/unidade-card';
 import { Filters } from '@/components/filters';
 import { StatusSummary } from '@/components/status-summary';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ThemeToggleSimple } from '@/components/theme-toggle-simple';
 import { Building2, Home, TrendingUp, Users, Loader2 } from 'lucide-react';
 
 interface Empreendimento {
@@ -247,8 +248,9 @@ export default function EspelhoVendas() {
                 </div>
               </div>
               
-              {/* Empreendimento Selector */}
-              <div className="flex items-center justify-center md:justify-end">
+              {/* Controles Direita */}
+              <div className="flex items-center justify-center md:justify-end gap-3">
+                {/* Empreendimento Selector */}
                 <div className="flex items-center space-x-2 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
                   {empreendimentos.map((emp) => (
                     <button
@@ -264,6 +266,9 @@ export default function EspelhoVendas() {
                     </button>
                   ))}
                 </div>
+                
+                {/* Theme Toggle */}
+                <ThemeToggleSimple />
               </div>
             </div>
             
