@@ -14,24 +14,24 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Z.ai Code Scaffold - AI-Powered Development",
-  description: "Modern Next.js scaffold optimized for AI-powered development with Z.ai. Built with TypeScript, Tailwind CSS, and shadcn/ui.",
-  keywords: ["Z.ai", "Next.js", "TypeScript", "Tailwind CSS", "shadcn/ui", "AI development", "React"],
-  authors: [{ name: "Z.ai Team" }],
+  title: "Alto Sobradinho - Disponibilidade",
+  description: "Espelho de vendas dos empreendimentos Alto da Alvorada e Alto do Horizonte. Consulte em tempo real a disponibilidade de unidades, valores e status.",
+  keywords: ["Alto Sobradinho", "Disponibilidade", "Vendas", "Imobiliário", "Alto da Alvorada", "Alto do Horizonte", "Next.js", "TypeScript", "React"],
+  authors: [{ name: "Alto Sobradinho Team" }],
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    icon: "/logo-qb.png",
   },
   openGraph: {
-    title: "Z.ai Code Scaffold",
-    description: "AI-powered development with modern React stack",
-    url: "https://chat.z.ai",
-    siteName: "Z.ai",
+    title: "Alto Sobradinho - Disponibilidade",
+    description: "Espelho de vendas em tempo real dos empreendimentos Alto da Alvorada e Alto do Horizonte",
+    url: "https://alto-sobradinho.vercel.app",
+    siteName: "Alto Sobradinho",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Z.ai Code Scaffold",
-    description: "AI-powered development with modern React stack",
+    title: "Alto Sobradinho - Disponibilidade",
+    description: "Espelho de vendas em tempo real dos empreendimentos Alto da Alvorada e Alto do Horizonte",
   },
 };
 
@@ -41,7 +41,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="pt-BR" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
