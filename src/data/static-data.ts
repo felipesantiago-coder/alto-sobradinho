@@ -115,7 +115,7 @@ export const ALTO_DA_ALVORADA: Unidade[] = [
   { id: 101, unidade: "B-106", andar: 1, areaPrivativa: "59,86 m²", tipologia: "2Q", posicaoSol: "Poente", vaga: 1, valorAvaliacao: "R$ 571000,00", valorVenda: "R$ 508646,81", disponibilidade: "Vendida" },
   { id: 102, unidade: "B-107", andar: 1, areaPrivativa: "72,83 m²", tipologia: "3Q", posicaoSol: "Nascente", vaga: 1, valorAvaliacao: "R$ 634000,00", valorVenda: "R$ 607550,16", disponibilidade: "Vendida" },
   { id: 103, unidade: "B-108", andar: 1, areaPrivativa: "72,83 m²", tipologia: "3Q", posicaoSol: "Poente", vaga: 1, valorAvaliacao: "R$ 634000,00", valorVenda: "R$ 567096,49", disponibilidade: "Vendida" },
-  { id: 104, unidade: "B-201", andar: 2, areaPrivativa: "72,83 m²", tipologia: "3Q", posicaoSol: "Nascente", vaga: 1, valorAvaliacao: "R$ 640000,00", valorVenda: "R$ 612552,74", disponibilidade: "Reservada" },
+  { id: 104, unidade: "B-201", andar: 2, areaPrivativa: "72,83 m²", tipologia: "3Q", posicaoSol: "Nascente", vaga: 1, valorAvaliacao: "R$ 640000,00", valorVenda: "R$ 612552,74", disponibilidade: "Vendida" },
   { id: 105, unidade: "B-202", andar: 2, areaPrivativa: "72,83 m²", tipologia: "3Q", posicaoSol: "Poente", vaga: 1, valorAvaliacao: "R$ 640000,00", valorVenda: "R$ 571927,29", disponibilidade: "Vendida" },
   { id: 106, unidade: "B-203", andar: 2, areaPrivativa: "59,86 m²", tipologia: "2Q", posicaoSol: "Nascente", vaga: 1, valorAvaliacao: "R$ 575000,00", valorVenda: "R$ 550444,98", disponibilidade: "Vendida" },
   { id: 107, unidade: "B-204", andar: 2, areaPrivativa: "59,86 m²", tipologia: "2Q", posicaoSol: "Poente", vaga: 1, valorAvaliacao: "R$ 575000,00", valorVenda: "R$ 512392,80", disponibilidade: "Vendida" },
