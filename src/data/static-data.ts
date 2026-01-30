@@ -11,7 +11,7 @@ export interface Unidade {
   disponibilidade: string;
 }
 export const ALTO_DA_ALVORADA: Unidade[] = [
-  { id: 0, unidade: "A-1", andar: 0, areaPrivativa: "111,19 m²", tipologia: "3Q + AP", posicaoSol: "Nascente", vaga: 2, valorAvaliacao: "R$ 829.000", valorVenda: "R$ 793009.00", disponibilidade: "Vendida" },
+  { id: 0, unidade: "A-1", andar: 0, areaPrivativa: "111,18 m²", tipologia: "3Q + AP", posicaoSol: "Nascente", vaga: 2, valorAvaliacao: "R$ 829.000", valorVenda: "R$ 793009.00", disponibilidade: "Vendida" },
   { id: 1, unidade: "A-2", andar: 0, areaPrivativa: "111,18 m²", tipologia: "3Q + AP", posicaoSol: "Poente", vaga: 2, valorAvaliacao: "R$ 820.000", valorVenda: "R$ 783601.88", disponibilidade: "Vendida" },
   { id: 2, unidade: "A-4", andar: 0, areaPrivativa: "81,45 m²", tipologia: "2Q + AP", posicaoSol: "Poente", vaga: 1, valorAvaliacao: "R$ 619.000", valorVenda: "R$ 591906.30", disponibilidade: "Vendida" },
   { id: 3, unidade: "A-6", andar: 0, areaPrivativa: "81,45 m²", tipologia: "2Q + AP", posicaoSol: "Poente", vaga: 1, valorAvaliacao: "R$ 619.000", valorVenda: "R$ 591906.30", disponibilidade: "Vendida" },
