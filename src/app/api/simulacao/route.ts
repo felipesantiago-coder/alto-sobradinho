@@ -25,7 +25,7 @@ const PARAMETROS = {
 }
 
 const PRAZO_OBRA_PADRAO = 36
-const IDADE_MAXIMA = 67.5
+const IDADE_MAXIMA = 67.54
 const IDADE_MINIMA_REDUCAO = 45
 
 // Função para ajustar valor para 1 centavo a menos (truncar e subtrair 0.01)

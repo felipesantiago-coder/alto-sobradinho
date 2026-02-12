@@ -184,7 +184,6 @@ function SimuladorCaixaContent() {
                   <li>• <strong>SAC:</strong> Entrada mínima 10%, até 30% da renda, prazo até 420 meses</li>
                   <li>• <strong>PRICE:</strong> Entrada mínima 20%, até 25% da renda, prazo até 360 meses</li>
                   <li>• Taxa: 10,9259% a.a. (nominal) | 11,49% a.a. (efetiva)</li>
-                  <li>• Idade máxima: 67 anos e 6 meses</li>
                 </ul>
               </CardContent>
             </Card>
