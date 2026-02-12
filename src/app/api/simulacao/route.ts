@@ -25,6 +25,7 @@ const PARAMETROS = {
 }
 
 const PRAZO_OBRA_PADRAO = 36
+const PRAZO_MINIMO_AMORTIZACAO = 120 // 10 anos em meses
 const IDADE_MAXIMA = 67.54
 const IDADE_MINIMA_REDUCAO = 45
 
@@ -52,7 +53,7 @@ function calcularPrazoMaximo(idade: number, sistema: 'SAC' | 'PRICE'): number {
   if (idade < IDADE_MINIMA_REDUCAO) return prazoBase
   const faixaReducao = IDADE_MAXIMA - IDADE_MINIMA_REDUCAO
   const fatorReducao = (idade - IDADE_MINIMA_REDUCAO) / faixaReducao
-  return Math.max(12, Math.floor(prazoBase * (1 - fatorReducao)))
+  return Math.max(PRAZO_MINIMO_AMORTIZACAO, Math.floor(prazoBase * (1 - fatorReducao)))
 }
 
 function calcularSeguroMIP(saldoDevedor: number, idade: number): number {
@@ -228,6 +229,12 @@ export async function POST(request: NextRequest) {
     const sistema = sistemaAmortizacao.toUpperCase().includes('SAC') ? 'SAC' : 'PRICE'
     const parametros = PARAMETROS[sistema]
     const prazoMaximoAmortizacao = calcularPrazoMaximo(idade, sistema)
+    
+    // Verificar se o prazo calculado é menor que o mínimo permitido
+    if (prazoMaximoAmortizacao < PRAZO_MINIMO_AMORTIZACAO) {
+      return NextResponse.json({ error: `Não é possível financiar. Prazo mínimo permitido é de 10 anos. Com a idade informada, o prazo máximo disponível é inferior ao mínimo exigido.` }, { status: 400 })
+    }
+    
     const prazoTotal = prazoMaximoAmortizacao + prazoObraNum
 
     let resultado: { 
