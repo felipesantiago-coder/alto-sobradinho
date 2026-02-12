@@ -25,8 +25,14 @@ const PARAMETROS = {
 }
 
 const PRAZO_OBRA_PADRAO = 36
-const IDADE_MAXIMA = 80.5
+const IDADE_MAXIMA = 67.5
 const IDADE_MINIMA_REDUCAO = 45
+
+// Função para ajustar valor para 1 centavo a menos (truncar e subtrair 0.01)
+function ajustarParcela(valor: number): number {
+  const truncado = Math.floor(valor * 100) / 100
+  return truncado - 0.01
+}
 
 function calcularIdadePrecisa(dataNasc: string): number {
   const hoje = new Date()
@@ -74,6 +80,15 @@ function calcularPrestacaoPRICE(valorFinanciado: number, taxaMensal: number, pra
   return valorFinanciado * (i * fator) / (fator - 1)
 }
 
+// Calcular valor financiado a partir da prestação (inverso da fórmula PRICE)
+function calcularValorFinanciadoFromPrestacao(prestacao: number, taxaMensal: number, prazoAmortizacao: number): number {
+  const n = prazoAmortizacao
+  const i = taxaMensal
+  if (i === 0) return prestacao * n
+  const fator = Math.pow(1 + i, n)
+  return prestacao * (fator - 1) / (i * fator)
+}
+
 function calcularValorFinanciadoPRICE(rendaMensal: number, taxaMensal: number, prazoAmortizacao: number, valorImovel: number, idade: number) {
   const limiteRenda = PARAMETROS.PRICE.limiteRenda
   const ltvMaximo = PARAMETROS.PRICE.ltvMaximo
@@ -99,11 +114,29 @@ function calcularValorFinanciadoPRICE(rendaMensal: number, taxaMensal: number, p
     iteracao++
   }
 
-  const prestacaoBase = calcularPrestacaoPRICE(valorFinanciado, taxaMensal, prazoAmortizacao)
+  // Calcular prestação base (PMT)
+  let prestacaoBase = calcularPrestacaoPRICE(valorFinanciado, taxaMensal, prazoAmortizacao)
   const seguroMIP = calcularSeguroMIP(valorFinanciado, idade)
   const seguroDFI = calcularSeguroDFI(valorImovel)
+  
+  // Prestação total calculada
+  let prestacaoTotal = prestacaoBase + seguroMIP + seguroDFI
+  
+  // Ajustar prestação para 1 centavo a menos
+  const prestacaoAjustada = ajustarParcela(prestacaoTotal)
+  
+  // Recalcular prestação base ajustada
+  const prestacaoBaseAjustada = prestacaoAjustada - seguroMIP - seguroDFI
+  
+  // Recalcular valor financiado com a prestação ajustada
+  const valorFinanciadoAjustado = calcularValorFinanciadoFromPrestacao(prestacaoBaseAjustada, taxaMensal, prazoAmortizacao)
 
-  return { valorFinanciado, prestacao: prestacaoBase + seguroMIP + seguroDFI, seguroMIP, seguroDFI }
+  return { 
+    valorFinanciado: valorFinanciadoAjustado, 
+    prestacao: prestacaoAjustada, 
+    seguroMIP, 
+    seguroDFI 
+  }
 }
 
 function calcularValorFinanciadoSAC(rendaMensal: number, taxaMensal: number, prazoAmortizacao: number, valorImovel: number, idade: number) {
@@ -129,14 +162,35 @@ function calcularValorFinanciadoSAC(rendaMensal: number, taxaMensal: number, pra
     iteracao++
   }
 
-  const amortizacaoMensal = valorFinanciado / prazoAmortizacao
-  const seguroMIP = calcularSeguroMIP(valorFinanciado, idade)
-  const seguroDFI = calcularSeguroDFI(valorImovel)
+  // Calcular amortização e juros
+  let amortizacaoMensal = valorFinanciado / prazoAmortizacao
+  let jurosPrimeira = valorFinanciado * taxaMensal
+  let seguroMIP = calcularSeguroMIP(valorFinanciado, idade)
+  let seguroDFI = calcularSeguroDFI(valorImovel)
+  
+  // Prestação inicial calculada
+  let prestacaoInicial = amortizacaoMensal + jurosPrimeira + seguroMIP + seguroDFI
+  
+  // Ajustar prestação inicial para 1 centavo a menos
+  const prestacaoInicialAjustada = ajustarParcela(prestacaoInicial)
+  
+  // Recalcular valor financiado com a prestação ajustada
+  const prestacaoBaseAjustada = prestacaoInicialAjustada - seguroMIP - seguroDFI
+  const valorFinanciadoAjustado = prestacaoBaseAjustada / (1 / prazoAmortizacao + taxaMensal)
+  
+  // Recalcular valores com valor financiado ajustado
+  amortizacaoMensal = valorFinanciadoAjustado / prazoAmortizacao
+  jurosPrimeira = valorFinanciadoAjustado * taxaMensal
+  seguroMIP = calcularSeguroMIP(valorFinanciadoAjustado, idade)
+  
+  // Prestação final (última parcela)
+  const jurosUltima = amortizacaoMensal * taxaMensal
+  const prestacaoFinal = amortizacaoMensal + jurosUltima + seguroMIP + seguroDFI
 
   return {
-    valorFinanciado,
-    prestacaoInicial: amortizacaoMensal + (valorFinanciado * taxaMensal) + seguroMIP + seguroDFI,
-    prestacaoFinal: amortizacaoMensal + (amortizacaoMensal * taxaMensal) + seguroMIP + seguroDFI,
+    valorFinanciado: valorFinanciadoAjustado,
+    prestacaoInicial: prestacaoInicialAjustada,
+    prestacaoFinal: ajustarParcela(prestacaoFinal),
     amortizacao: amortizacaoMensal,
     seguroMIP,
     seguroDFI
@@ -176,7 +230,16 @@ export async function POST(request: NextRequest) {
     const prazoMaximoAmortizacao = calcularPrazoMaximo(idade, sistema)
     const prazoTotal = prazoMaximoAmortizacao + prazoObraNum
 
-    let resultado: { valorFinanciado: number; valorEntrada: number; prestacaoInicial: number; prestacaoFinal: number; amortizacao: number; juros: number; seguroMIP: number; seguroDFI: number }
+    let resultado: { 
+      valorFinanciado: number
+      valorEntrada: number
+      prestacaoInicial: number
+      prestacaoFinal: number
+      amortizacao: number
+      juros: number
+      seguroMIP: number
+      seguroDFI: number
+    }
 
     if (sistema === 'SAC') {
       const calculoSAC = calcularValorFinanciadoSAC(rendaNum, TAXA_JUROS_MENSAL, prazoMaximoAmortizacao, valorImovelNum, idade)

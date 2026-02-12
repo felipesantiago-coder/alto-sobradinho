@@ -9,7 +9,6 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ArrowLeft, Landmark, Calculator, AlertCircle, Loader2, CheckCircle, Info } from 'lucide-react'
 import Link from 'next/link'
-import { cn } from '@/lib/utils'
 
 interface SimulacaoResult {
   sucesso: boolean
@@ -185,6 +184,7 @@ function SimuladorCaixaContent() {
                   <li>• <strong>SAC:</strong> Entrada mínima 10%, até 30% da renda, prazo até 420 meses</li>
                   <li>• <strong>PRICE:</strong> Entrada mínima 20%, até 25% da renda, prazo até 360 meses</li>
                   <li>• Taxa: 10,9259% a.a. (nominal) | 11,49% a.a. (efetiva)</li>
+                  <li>• Idade máxima: 67 anos e 6 meses</li>
                 </ul>
               </CardContent>
             </Card>
@@ -213,9 +213,9 @@ function SimuladorCaixaContent() {
                       <p className="text-xs text-muted-foreground mb-1">Prazo Total</p>
                       <p className="text-lg font-bold">{resultados.dados.Prazo_Total}</p>
                     </div>
-                    <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3 border">
+                    <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 border border-green-200 dark:border-green-800">
                       <p className="text-xs text-muted-foreground mb-1">1ª Prestação</p>
-                      <p className="text-lg font-bold">{resultados.dados.Primeira_Prestacao}</p>
+                      <p className="text-lg font-bold text-green-700 dark:text-green-400">{resultados.dados.Primeira_Prestacao}</p>
                     </div>
                     <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3 border">
                       <p className="text-xs text-muted-foreground mb-1">Última Prestação</p>
