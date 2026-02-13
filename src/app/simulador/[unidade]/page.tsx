@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Calculator, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Calculator, AlertCircle, Building2, Wallet, TrendingUp, Clock, Separator } from 'lucide-react'
 import Link from 'next/link'
 
 const deliveryDates: Record<string, Date> = {
@@ -33,6 +33,7 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
     pagamento?: number
     pagamentoTotal?: number
     saldo: number
+    periodo?: 'obra' | 'entrega' | 'pos-obra'
   }>>([])
   const [summaryValues, setSummaryValues] = useState({
     nominalMensalSum: 0, nominalInterSum: 0, correctedMensalSum: 0, correctedInterSum: 0,
@@ -129,11 +130,13 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
       pagamento?: number
       pagamentoTotal?: number
       saldo: number
+      periodo?: 'obra' | 'entrega' | 'pos-obra'
     }> = []
     let currentBalance = finalValue
     const currentDate = new Date()
 
-    newSchedule.push({ mes: '0 (Ato)', data: currentDate.toLocaleDateString('pt-BR'), tipo: 'Sinal', pagamento: finalDownPayment, saldo: currentBalance })
+    // Sinal no ato - período obra
+    newSchedule.push({ mes: '0 (Ato)', data: currentDate.toLocaleDateString('pt-BR'), tipo: 'Sinal', pagamento: finalDownPayment, saldo: currentBalance, periodo: 'obra' })
     currentBalance -= finalDownPayment
     currentDate.setMonth(currentDate.getMonth() + 1)
 
@@ -145,14 +148,24 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
       if (intermediarias.includes(i)) { interPmt = baseInterValue * Math.pow(1 + monthlyIncc, i); tipo = 'Mensal + Intermediária' }
       const totalPmt = currentMensalPmt + interPmt
       currentBalance -= totalPmt
-      newSchedule.push({ mes: i.toString(), data: currentDate.toLocaleDateString('pt-BR'), tipo, pagamentoTotal: totalPmt, saldo: currentBalance })
+      newSchedule.push({ mes: i.toString(), data: currentDate.toLocaleDateString('pt-BR'), tipo, pagamentoTotal: totalPmt, saldo: currentBalance, periodo: 'obra' })
       currentDate.setMonth(currentDate.getMonth() + 1)
     }
 
     const financingPrincipal = currentBalance
-    setSummaryValues(prev => ({ ...prev, correctedPostDeliveryBalance: financingPrincipal }))
+    
+    // Calcular saldo pós-obra base sem juros (valor nominal)
+    const nominalCaptureTarget = finalValue * (30 / 100) // 30% captação
+    const nominalPostDeliveryBalance = finalValue - finalDownPayment - (baseMensalValue * getMonthsDifference(new Date(), deliveryDateObj)) - (baseInterValue * intermediarias.length)
+    
+    setSummaryValues(prev => ({ 
+      ...prev, 
+      correctedPostDeliveryBalance: financingPrincipal,
+      nominalPostDeliveryBalance: Math.max(0, nominalPostDeliveryBalance)
+    }))
 
-    newSchedule.push({ mes: 'ENTREGA', data: currentDate.toLocaleDateString('pt-BR'), tipo: 'Início Financiamento', saldo: financingPrincipal })
+    // Entrega - marco divisor
+    newSchedule.push({ mes: 'ENTREGA', data: currentDate.toLocaleDateString('pt-BR'), tipo: 'Início Financiamento', saldo: financingPrincipal, periodo: 'entrega' })
     currentDate.setMonth(currentDate.getMonth() + 1)
 
     const n = 120
@@ -165,7 +178,7 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
       balanceLoop += balanceLoop * iRate
       const payThisMonth = x === n ? balanceLoop : pmt
       balanceLoop -= payThisMonth
-      newSchedule.push({ mes: x.toString(), data: currentDate.toLocaleDateString('pt-BR'), tipo: 'Parcela Financiamento', pagamentoTotal: payThisMonth, saldo: Math.max(0, balanceLoop) })
+      newSchedule.push({ mes: x.toString(), data: currentDate.toLocaleDateString('pt-BR'), tipo: 'Parcela Financiamento', pagamentoTotal: payThisMonth, saldo: Math.max(0, balanceLoop), periodo: 'pos-obra' })
       currentDate.setMonth(currentDate.getMonth() + 1)
     }
 
@@ -179,6 +192,13 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
   if (!isClient) return null
 
   const finalValue = (parseFloat(saleValue) || 0) - (parseFloat(discountValue) || 0)
+  
+  // Calcular captação total durante obra
+  const captacaoObraNominal = summaryValues.sinalAto + summaryValues.nominalMensalSum + summaryValues.nominalInterSum
+  const captacaoObraCorrigida = summaryValues.sinalAto + summaryValues.correctedMensalSum + summaryValues.correctedInterSum
+  
+  // Encontrar índice da entrega para separação visual
+  const entregaIndex = schedule.findIndex(s => s.periodo === 'entrega')
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900 dark:to-slate-800">
@@ -272,36 +292,117 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
           </Card>
         </div>
 
+        {/* Seção de Resumo da Operação - ATUALIZADA */}
         <Card className="mb-6 dark:bg-background bg-white shadow-md">
-          <CardHeader><CardTitle className="text-lg">Resumo</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-primary" />
+              Resumo da Operação
+            </CardTitle>
+          </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg border-l-4 border-primary">
-                <h4 className="text-sm text-muted-foreground mb-2">Valor Final</h4>
-                <div className="text-xl font-bold">{formatCurrency(finalValue)}</div>
+            {/* Valor Final */}
+            <div className="mb-6">
+              <div className="bg-gradient-to-r from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 p-4 rounded-lg border-l-4 border-primary">
+                <h4 className="text-sm text-muted-foreground mb-1">Valor Final do Imóvel</h4>
+                <div className="text-2xl font-bold text-primary">{formatCurrency(finalValue)}</div>
               </div>
-              <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg border-l-4 border-primary">
-                <h4 className="text-sm text-muted-foreground mb-2">Sinal Ato</h4>
-                <div className="text-xl font-bold">{formatCurrency(summaryValues.sinalAto)}</div>
+            </div>
+
+            {/* Grid de resumo principal */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
+              {/* Sinal Ato */}
+              <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/20 p-5 rounded-xl border-2 border-green-300 dark:border-green-700 shadow-sm">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                    <Wallet className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-green-800 dark:text-green-200">Sinal no Ato</h4>
+                    <p className="text-xs text-green-600 dark:text-green-400">Pagamento imediato</p>
+                  </div>
+                </div>
+                <div className="text-2xl font-bold text-green-700 dark:text-green-300">
+                  {formatCurrency(summaryValues.sinalAto)}
+                </div>
+                <div className="text-xs text-green-600 dark:text-green-400 mt-1">
+                  {((summaryValues.sinalAto / finalValue) * 100).toFixed(1)}% do valor
+                </div>
               </div>
-              <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg border-l-4 border-primary">
-                <h4 className="text-sm text-muted-foreground mb-2">Captação (Sem Juros)</h4>
-                <div className="text-xl font-bold">{formatCurrency(finalValue * (capturePct / 100))}</div>
+
+              {/* Captação Durante a Obra */}
+              <div className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/30 dark:to-amber-800/20 p-5 rounded-xl border-2 border-amber-300 dark:border-amber-700 shadow-sm">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center">
+                    <Building2 className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-amber-800 dark:text-amber-200">Captação Durante a Obra</h4>
+                    <p className="text-xs text-amber-600 dark:text-amber-400">Mensais + Intermediárias</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-amber-700 dark:text-amber-300">Valor Base (sem juros):</span>
+                    <span className="font-semibold text-amber-800 dark:text-amber-200">{formatCurrency(captacaoObraNominal - summaryValues.sinalAto)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-amber-700 dark:text-amber-300">Valor Corrigido (INCC):</span>
+                    <span className="font-bold text-lg text-amber-900 dark:text-amber-100">{formatCurrency(captacaoObraCorrigida - summaryValues.sinalAto)}</span>
+                  </div>
+                </div>
+                
+                <div className="mt-3 pt-3 border-t border-amber-200 dark:border-amber-700">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-amber-800 dark:text-amber-200">Total com Sinal:</span>
+                    <span className="font-bold text-amber-900 dark:text-amber-100">{formatCurrency(captacaoObraCorrigida)}</span>
+                  </div>
+                </div>
               </div>
-              <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg border-l-4 border-primary">
-                <h4 className="text-sm text-muted-foreground mb-2">Saldo Pós-Obra</h4>
-                <div className="text-xl font-bold">{formatCurrency(summaryValues.correctedPostDeliveryBalance)}</div>
+
+              {/* Saldo Pós-Obra */}
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/20 p-5 rounded-xl border-2 border-blue-300 dark:border-blue-700 shadow-sm md:col-span-2">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                    <Clock className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-blue-800 dark:text-blue-200">Saldo Restante para Pós-Obra</h4>
+                    <p className="text-xs text-blue-600 dark:text-blue-400">Valor a ser financiado após a entrega</p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="bg-white/50 dark:bg-white/10 p-3 rounded-lg">
+                    <div className="text-sm text-blue-700 dark:text-blue-300 mb-1">Valor Base (sem juros)</div>
+                    <div className="text-xl font-bold text-blue-800 dark:text-blue-200">{formatCurrency(summaryValues.nominalPostDeliveryBalance)}</div>
+                  </div>
+                  <div className="bg-white/50 dark:bg-white/10 p-3 rounded-lg">
+                    <div className="text-sm text-blue-700 dark:text-blue-300 mb-1">Valor Corrigido (INCC)</div>
+                    <div className="text-xl font-bold text-blue-800 dark:text-blue-200">{formatCurrency(summaryValues.correctedPostDeliveryBalance)}</div>
+                  </div>
+                </div>
+                
+                <div className="mt-3 text-xs text-blue-600 dark:text-blue-400">
+                  Este saldo será financiado em 120 parcelas com taxa IPCA + 1% a.a.
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
+        {/* Tabela de Pagamentos com Separação Visual */}
         <Card className="dark:bg-background bg-white shadow-md">
-          <CardHeader><CardTitle className="text-lg">Simulação Mensal</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-lg">Simulação Mensal</CardTitle>
+            <p className="text-sm text-muted-foreground">Cronograma de pagamentos durante e após a obra</p>
+          </CardHeader>
           <CardContent>
             <div className="overflow-x-auto max-h-96">
               <table className="w-full border-collapse text-sm">
-                <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800">
+                <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 z-10">
                   <tr>
                     <th className="px-4 py-3 text-left font-semibold border-b">Mês</th>
                     <th className="px-4 py-3 text-left font-semibold border-b">Data</th>
@@ -311,17 +412,75 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
                   </tr>
                 </thead>
                 <tbody>
-                  {schedule.map((row, index) => (
-                    <tr key={index} className={`${index % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/50'}`}>
-                      <td className="px-4 py-3 border-b">{row.mes}</td>
-                      <td className="px-4 py-3 border-b">{row.data}</td>
-                      <td className="px-4 py-3 border-b">{row.tipo}</td>
-                      <td className="px-4 py-3 border-b">{row.pagamentoTotal ? formatCurrency(row.pagamentoTotal) : row.pagamento ? formatCurrency(row.pagamento) : '-'}</td>
-                      <td className="px-4 py-3 border-b font-semibold">{formatCurrency(row.saldo)}</td>
+                  {/* Período Durante a Obra */}
+                  {schedule.filter(s => s.periodo === 'obra').map((row, index) => (
+                    <tr key={`obra-${index}`} className={`${index % 2 === 0 ? 'bg-green-50/50 dark:bg-green-900/10' : 'bg-green-100/30 dark:bg-green-900/5'} hover:bg-green-100/50 dark:hover:bg-green-900/20 transition-colors`}>
+                      <td className="px-4 py-3 border-b border-green-200/50 dark:border-green-800/50">{row.mes}</td>
+                      <td className="px-4 py-3 border-b border-green-200/50 dark:border-green-800/50">{row.data}</td>
+                      <td className="px-4 py-3 border-b border-green-200/50 dark:border-green-800/50">
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100">
+                          {row.tipo}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 border-b border-green-200/50 dark:border-green-800/50 font-medium text-green-700 dark:text-green-300">
+                        {row.pagamentoTotal ? formatCurrency(row.pagamentoTotal) : row.pagamento ? formatCurrency(row.pagamento) : '-'}
+                      </td>
+                      <td className="px-4 py-3 border-b border-green-200/50 dark:border-green-800/50 font-semibold">{formatCurrency(row.saldo)}</td>
+                    </tr>
+                  ))}
+                  
+                  {/* Separador - Entrega */}
+                  {entregaIndex !== -1 && schedule[entregaIndex] && (
+                    <tr key="entrega" className="bg-gradient-to-r from-amber-100 to-amber-200 dark:from-amber-900/50 dark:to-amber-800/50">
+                      <td colSpan={5} className="px-4 py-4 text-center">
+                        <div className="flex items-center justify-center gap-3">
+                          <div className="h-px bg-amber-400 dark:bg-amber-600 flex-1"></div>
+                          <div className="flex items-center gap-2">
+                            <Building2 className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                            <span className="font-bold text-amber-800 dark:text-amber-200">ENTREGA DO EMPREENDIMENTO</span>
+                            <span className="text-amber-700 dark:text-amber-300">- Início do Financiamento</span>
+                          </div>
+                          <div className="h-px bg-amber-400 dark:bg-amber-600 flex-1"></div>
+                        </div>
+                        <div className="mt-2 text-amber-700 dark:text-amber-300 font-semibold">
+                          Saldo a financiar: {formatCurrency(schedule[entregaIndex].saldo)}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  
+                  {/* Período Pós-Obra */}
+                  {schedule.filter(s => s.periodo === 'pos-obra').map((row, index) => (
+                    <tr key={`pos-obra-${index}`} className={`${index % 2 === 0 ? 'bg-blue-50/50 dark:bg-blue-900/10' : 'bg-blue-100/30 dark:bg-blue-900/5'} hover:bg-blue-100/50 dark:hover:bg-blue-900/20 transition-colors`}>
+                      <td className="px-4 py-3 border-b border-blue-200/50 dark:border-blue-800/50">{row.mes}</td>
+                      <td className="px-4 py-3 border-b border-blue-200/50 dark:border-blue-800/50">{row.data}</td>
+                      <td className="px-4 py-3 border-b border-blue-200/50 dark:border-blue-800/50">
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100">
+                          {row.tipo}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 border-b border-blue-200/50 dark:border-blue-800/50 font-medium text-blue-700 dark:text-blue-300">
+                        {row.pagamentoTotal ? formatCurrency(row.pagamentoTotal) : row.pagamento ? formatCurrency(row.pagamento) : '-'}
+                      </td>
+                      <td className="px-4 py-3 border-b border-blue-200/50 dark:border-blue-800/50 font-semibold">{formatCurrency(row.saldo)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+            
+            {/* Legenda */}
+            <div className="mt-4 pt-4 border-t border-border">
+              <div className="flex flex-wrap gap-4 justify-center">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-green-100 dark:bg-green-900/50 rounded border border-green-300 dark:border-green-700"></div>
+                  <span className="text-sm text-muted-foreground">Período Durante a Obra</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-blue-100 dark:bg-blue-900/50 rounded border border-blue-300 dark:border-blue-700"></div>
+                  <span className="text-sm text-muted-foreground">Período Pós-Obra (Financiamento)</span>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>

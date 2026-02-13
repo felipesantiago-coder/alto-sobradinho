@@ -302,8 +302,6 @@ export default function EspelhoVendas() {
                 <ThemeToggleSimple />
               </div>
             </div>
-            
-            {/* Estatísticas Simplificadas no Header - Removidas conforme solicitado */}
           </div>
         </header>
 
