@@ -26,7 +26,14 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
   const [customIntermediaria, setCustomIntermediaria] = useState<string>('')
   const [customMensal, setCustomMensal] = useState<string>('')
   const [sinalWarning, setSinalWarning] = useState<string>('')
-  const [schedule, setSchedule] = useState<any[]>([])
+  const [schedule, setSchedule] = useState<Array<{
+    mes: string
+    data: string
+    tipo: string
+    pagamento?: number
+    pagamentoTotal?: number
+    saldo: number
+  }>>([])
   const [summaryValues, setSummaryValues] = useState({
     nominalMensalSum: 0, nominalInterSum: 0, correctedMensalSum: 0, correctedInterSum: 0,
     nominalTotalConstruction: 0, correctedTotalConstruction: 0, baseMensalValue: 0, baseInterValue: 0,
@@ -71,7 +78,7 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
     const monthsToDelivery = getMonthsDifference(today, deliveryDateObj)
     const monthlyIncc = Math.pow(1 + (inccRate / 100), 1 / 12) - 1
 
-    let intermediarias: number[] = []
+    const intermediarias: number[] = []
     for (let m = 6; m <= Math.max(0, monthsToDelivery - 3); m += 6) intermediarias.push(m)
 
     const nominalCaptureTarget = finalValue * (capturePct / 100)
@@ -80,14 +87,14 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
 
     let baseInterValue = defaultInterBaseValue
     let baseMensalValue = 0
-    let finalDownPayment = parseFloat(downPayment) || 0
+    const finalDownPayment = parseFloat(downPayment) || 0
 
-    if (customIntermediaria) {
-      baseInterValue = parseFloat(customIntermediaria)
+    if (intermediariaCustomizada) {
+      baseInterValue = parseFloat(customIntermediaria) || 0
       const remainingForMensais = nominalCaptureTarget - finalDownPayment - (baseInterValue * intermediarias.length)
       baseMensalValue = Math.max(MIN_MENSAL, remainingForMensais / monthsToDelivery)
-    } else if (customMensal) {
-      baseMensalValue = Math.max(MIN_MENSAL, parseFloat(customMensal))
+    } else if (mensalCustomizada) {
+      baseMensalValue = Math.max(MIN_MENSAL, parseFloat(customMensal) || 0)
       if (!intermediariaCustomizada) baseInterValue = defaultInterBaseValue
     } else {
       const remainingForMensais = nominalCaptureTarget - finalDownPayment - (baseInterValue * intermediarias.length)
@@ -115,9 +122,16 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
   }
 
   function generateTable(baseMensalValue: number, baseInterValue: number, monthlyIncc: number, intermediarias: number[], deliveryDateObj: Date, finalValue: number, finalDownPayment: number) {
-    const newSchedule: any[] = []
+    const newSchedule: Array<{
+      mes: string
+      data: string
+      tipo: string
+      pagamento?: number
+      pagamentoTotal?: number
+      saldo: number
+    }> = []
     let currentBalance = finalValue
-    let currentDate = new Date()
+    const currentDate = new Date()
 
     newSchedule.push({ mes: '0 (Ato)', data: currentDate.toLocaleDateString('pt-BR'), tipo: 'Sinal', pagamento: finalDownPayment, saldo: currentBalance })
     currentBalance -= finalDownPayment
@@ -285,10 +299,10 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
         <Card className="dark:bg-background bg-white shadow-md">
           <CardHeader><CardTitle className="text-lg">Simulação Mensal</CardTitle></CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-96">
               <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-800">
+                <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800">
+                  <tr>
                     <th className="px-4 py-3 text-left font-semibold border-b">Mês</th>
                     <th className="px-4 py-3 text-left font-semibold border-b">Data</th>
                     <th className="px-4 py-3 text-left font-semibold border-b">Tipo</th>

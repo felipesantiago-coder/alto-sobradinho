@@ -1,15 +1,17 @@
-import { NextResponse } from 'next/server';
-import { getEmpreendimentos } from '@/data/static-data';
+import { NextResponse } from 'next/server'
+import { getEmpreendimentos } from '@/data/static-data'
 
 export async function GET() {
-  try {
-    const empreendimentos = getEmpreendimentos();
-    return NextResponse.json(empreendimentos);
-  } catch (error) {
-    console.error('Erro ao buscar empreendimentos:', error);
-    return NextResponse.json(
-      { error: 'Erro ao buscar empreendimentos' },
-      { status: 500 }
-    );
-  }
+  const empreendimentos = getEmpreendimentos().map(emp => ({
+    id: String(emp.id),
+    nome: emp.nome,
+    slug: emp.slug,
+    descricao: emp.descricao,
+    logo: emp.logo,
+    _count: {
+      unidades: emp.totalUnidades
+    }
+  }))
+
+  return NextResponse.json(empreendimentos)
 }

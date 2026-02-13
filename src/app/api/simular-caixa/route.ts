@@ -1,20 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-// API unificada - usa cálculos matemáticos
+// API que redireciona para a API de simulação principal
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { renda, dataNascimento, valorImovel, sistemaAmortizacao } = body
+    const { renda, dataNascimento, valorImovel, sistemaAmortizacao, prazoObra } = body
 
     if (!renda || !dataNascimento || !valorImovel || !sistemaAmortizacao) {
       return NextResponse.json({ error: 'Faltam dados obrigatórios.' }, { status: 400 })
     }
 
-    // Redirecionar para a API de simulação
+    // Chamar a API de simulação principal
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/simulacao`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+      body: JSON.stringify({ renda, dataNascimento, valorImovel, sistemaAmortizacao, prazoObra })
     })
 
     const data = await response.json()
