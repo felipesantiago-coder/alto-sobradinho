@@ -286,8 +286,22 @@ function calcularValorFinanciadoPRICE(
   // não exceda o limite de renda.
   // =========================================================================
 
-  // Idade no início da amortização (para cálculo do MIP)
-  const idadeNoInicioAmortizacao = idade + (prazoObra / 12)
+  // =========================================================================
+  // CORREÇÃO CRÍTICA: MIP calculado com IDADE ATUAL (não idade futura)
+  // =========================================================================
+  // Descoberto em nova simulação oficial Caixa (13/02/2026):
+  // - Nasc. 06/12/1981 → Idade atual = 44 anos
+  // - MIP oficial = R$ 105,28
+  // - Fator = 105,28 / (417.781,03 × 0.000116) = 2.17
+  // - Fator 2.17 corresponde a IDADE 44 (faixa 43-45)
+  //
+  // Se usássemos idade futura (44 + 3 anos obra = 47):
+  // - Fator seria 3.33 (faixa 46-52)
+  // - MIP seria R$ 159,18 (INCORRETO!)
+  //
+  // CONCLUSÃO: Caixa usa IDADE ATUAL para MIP, não idade no início amort.
+  // =========================================================================
+  const idadeParaMIP = idade // Idade ATUAL, não idade futura
 
   // Estimativa inicial: usar LTV máximo como ponto de partida
   let valorFinanciado = valorFinanciadoMaximoPorLTV
@@ -297,8 +311,8 @@ function calcularValorFinanciadoPRICE(
   // Iteração para convergir no valor financiado
   // O MIP depende do saldo devedor, então precisamos iterar
   while (iteracao < 50 && diferenca > 0.01) {
-    // Calcular MIP com idade no início da amortização
-    const seguroMIP = calcularSeguroMIP(valorFinanciado, idadeNoInicioAmortizacao)
+    // Calcular MIP com idade ATUAL (descoberto em simulação oficial)
+    const seguroMIP = calcularSeguroMIP(valorFinanciado, idadeParaMIP)
     const seguroDFI = calcularSeguroDFI(valorImovel)
     
     // Prestação disponível para amortização + juros
@@ -317,7 +331,7 @@ function calcularValorFinanciadoPRICE(
 
   // Calcular componentes da prestação
   let prestacaoBase = calcularPrestacaoPRICE(valorFinanciado, taxaMensal, prazoAmortizacao)
-  const seguroMIP = calcularSeguroMIP(valorFinanciado, idadeNoInicioAmortizacao)
+  const seguroMIP = calcularSeguroMIP(valorFinanciado, idadeParaMIP)
   const seguroDFI = calcularSeguroDFI(valorImovel)
 
   // Prestação total = base + seguros + taxa operacional
@@ -359,8 +373,14 @@ function calcularValorFinanciadoSAC(
   // REGRA OFICIAL: O limite de renda (30% para SAC) aplica-se à PRESTAÇÃO
   // =========================================================================
 
-  // Idade no início da amortização (para cálculo do MIP)
-  const idadeNoInicioAmortizacao = idade + (prazoObra / 12)
+  // =========================================================================
+  // CORREÇÃO CRÍTICA: MIP calculado com IDADE ATUAL (não idade futura)
+  // =========================================================================
+  // Descoberto em simulação oficial Caixa (13/02/2026):
+  // A Caixa usa a IDADE ATUAL para MIP, não a idade no início da amortização.
+  // Isso foi validado com múltiplas simulações oficiais.
+  // =========================================================================
+  const idadeParaMIP = idade // Idade ATUAL, não idade futura
 
   // Estimativa inicial: usar LTV máximo como ponto de partida
   let valorFinanciado = valorFinanciadoMaximoPorLTV
@@ -370,8 +390,8 @@ function calcularValorFinanciadoSAC(
   // Iteração para convergir no valor financiado
   // O MIP depende do saldo devedor, então precisamos iterar
   while (iteracao < 50 && diferenca > 0.01) {
-    // Calcular MIP com idade no início da amortização
-    const seguroMIP = calcularSeguroMIP(valorFinanciado, idadeNoInicioAmortizacao)
+    // Calcular MIP com idade ATUAL (descoberto em simulação oficial)
+    const seguroMIP = calcularSeguroMIP(valorFinanciado, idadeParaMIP)
     const seguroDFI = calcularSeguroDFI(valorImovel)
     
     // Prestação disponível para amortização + juros
@@ -391,7 +411,7 @@ function calcularValorFinanciadoSAC(
   // Calcular amortização e juros
   let amortizacaoMensal = valorFinanciado / prazoAmortizacao
   let jurosPrimeira = valorFinanciado * taxaMensal
-  let seguroMIP = calcularSeguroMIP(valorFinanciado, idadeNoInicioAmortizacao)
+  let seguroMIP = calcularSeguroMIP(valorFinanciado, idadeParaMIP)
   let seguroDFI = calcularSeguroDFI(valorImovel)
 
   // Prestação inicial = amortização + juros + seguros + taxa operacional
@@ -407,7 +427,7 @@ function calcularValorFinanciadoSAC(
   // Recalcular valores com valor financiado ajustado
   amortizacaoMensal = valorFinanciadoAjustado / prazoAmortizacao
   jurosPrimeira = valorFinanciadoAjustado * taxaMensal
-  seguroMIP = calcularSeguroMIP(valorFinanciadoAjustado, idadeNoInicioAmortizacao)
+  seguroMIP = calcularSeguroMIP(valorFinanciadoAjustado, idadeParaMIP)
 
   // Prestação final (última parcela) - juros sobre última amortização
   const jurosUltima = amortizacaoMensal * taxaMensal
@@ -590,9 +610,9 @@ export async function POST(request: NextRequest) {
     const percentualComprometimento = (resultado.prestacaoInicial / rendaNum) * 100
     const percentualEntrada = (resultado.valorEntrada / valorImovelNum) * 100
     
-    // Fator MIP: usar idade no início da amortização (não idade atual)
-    const idadeNoInicioAmortizacao = idadeAnos + (prazoObraNum / 12)
-    const fatorMIP = obterFatorMIP(idadeNoInicioAmortizacao)
+    // Fator MIP: usar IDADE ATUAL (descoberto em simulações oficiais Caixa)
+    // A Caixa NÃO usa a idade no início da amortização para MIP
+    const fatorMIP = obterFatorMIP(idadeAnos)
 
     const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
     const formatarPrazo = (meses: number) => {
