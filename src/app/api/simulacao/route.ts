@@ -142,8 +142,8 @@ function obterFatorMIP(idade: number): number {
 }
 
 function ajustarParcela(valor: number): number {
-  const truncado = Math.floor(valor * 100) / 100
-  return truncado - 0.01
+  // Apenas truncar para 2 casas decimais (centavos)
+  return Math.floor(valor * 100) / 100
 }
 
 /**
