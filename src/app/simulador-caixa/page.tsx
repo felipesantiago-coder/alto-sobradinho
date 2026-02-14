@@ -32,8 +32,7 @@ interface SimulacaoResult {
   dados: {
     Sistema_Amortizacao: string
     Prazo_Amortizacao: string
-    Prazo_Obra: string
-    Prazo_Total: string
+    Prazo_Amortizacao_Meses: number
     Valor_Imovel: string
     Valor_Entrada: string
     Percentual_Entrada: string
@@ -138,16 +137,16 @@ function SimuladorCaixaContent() {
         </div>
 
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-4 mb-2">
-            <div className="w-14 h-14 bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-500/25">
-              <Landmark className="w-7 h-7" />
+        <div className="mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-2">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl sm:rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-500/25">
+              <Landmark className="w-6 h-6 sm:w-7 sm:h-7" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 dark:text-white">
                 Simulador de Financiamento CAIXA
               </h1>
-              <p className="text-slate-600 dark:text-slate-400">
+              <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400">
                 Simulação corrigida baseada em PDF oficial - Modalidade PRICE/SAC
               </p>
             </div>
@@ -167,29 +166,29 @@ function SimuladorCaixaContent() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                     {unidadeParam && (
                       <div>
-                        <Label className="text-sm text-muted-foreground">Unidade</Label>
-                        <p className="font-semibold">{unidadeParam}</p>
+                        <Label className="text-xs sm:text-sm text-muted-foreground">Unidade</Label>
+                        <p className="font-semibold text-sm sm:text-base">{unidadeParam}</p>
                       </div>
                     )}
                     {tipologiaParam && (
                       <div>
-                        <Label className="text-sm text-muted-foreground">Tipologia</Label>
-                        <p className="font-semibold">{tipologiaParam}</p>
+                        <Label className="text-xs sm:text-sm text-muted-foreground">Tipologia</Label>
+                        <p className="font-semibold text-sm sm:text-base">{tipologiaParam}</p>
                       </div>
                     )}
                     {areaParam && (
                       <div>
-                        <Label className="text-sm text-muted-foreground">Área</Label>
-                        <p className="font-semibold">{areaParam}</p>
+                        <Label className="text-xs sm:text-sm text-muted-foreground">Área</Label>
+                        <p className="font-semibold text-sm sm:text-base">{areaParam}</p>
                       </div>
                     )}
                     {valorImovelParam && (
                       <div>
-                        <Label className="text-sm text-muted-foreground">Valor</Label>
-                        <p className="font-semibold text-blue-600">{formatCurrency(parseValorMonetario(valorImovelParam))}</p>
+                        <Label className="text-xs sm:text-sm text-muted-foreground">Valor</Label>
+                        <p className="font-semibold text-sm sm:text-base text-blue-600">{formatCurrency(parseValorMonetario(valorImovelParam))}</p>
                       </div>
                     )}
                   </div>
@@ -285,7 +284,7 @@ function SimuladorCaixaContent() {
                   <Info className="w-4 h-4" />
                   Regras de Financiamento
                 </h4>
-                <div className="grid grid-cols-2 gap-4 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs sm:text-sm">
                   <div className="space-y-2">
                     <p className="font-medium text-blue-800 dark:text-blue-200">SAC</p>
                     <ul className="space-y-1 text-blue-700 dark:text-blue-300">
@@ -360,10 +359,10 @@ function SimuladorCaixaContent() {
                 </CardHeader>
                 <CardContent className="pt-6 space-y-6">
                   {/* Valor Financiado */}
-                  <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-5 text-white shadow-lg">
-                    <p className="text-sm text-blue-100 mb-1">Valor Total Financiado</p>
-                    <p className="text-3xl font-bold">{resultados.dados.Valor_Total_Financiado}</p>
-                    <div className="flex gap-4 mt-3 text-sm">
+                  <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-4 sm:p-5 text-white shadow-lg">
+                    <p className="text-xs sm:text-sm text-blue-100 mb-1">Valor Total Financiado</p>
+                    <p className="text-2xl sm:text-3xl font-bold">{resultados.dados.Valor_Total_Financiado}</p>
+                    <div className="flex flex-col sm:flex-row gap-1 sm:gap-4 mt-2 sm:mt-3 text-xs sm:text-sm">
                       <div>
                         <span className="text-blue-200">Entrada: </span>
                         <span className="font-medium">{resultados.dados.Valor_Entrada} ({resultados.dados.Percentual_Entrada})</span>
@@ -371,33 +370,23 @@ function SimuladorCaixaContent() {
                     </div>
                   </div>
 
-                  {/* Prazos */}
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 border text-center">
-                      <p className="text-xs text-muted-foreground mb-1">Prazo Amort.</p>
-                      <p className="text-lg font-bold">{resultados.dados.Prazo_Amortizacao}</p>
-                    </div>
-                    <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 border text-center">
-                      <p className="text-xs text-muted-foreground mb-1">Prazo Obra</p>
-                      <p className="text-lg font-bold">{resultados.dados.Prazo_Obra}</p>
-                    </div>
-                    <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 border text-center">
-                      <p className="text-xs text-muted-foreground mb-1">Prazo Total</p>
-                      <p className="text-lg font-bold">{resultados.dados.Prazo_Total}</p>
-                    </div>
+                  {/* Prazo */}
+                  <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 sm:p-4 border text-center">
+                    <p className="text-xs text-muted-foreground mb-1">Prazo de Amortização</p>
+                    <p className="text-xl sm:text-2xl font-bold">{resultados.dados.Prazo_Amortizacao_Meses} meses</p>
                   </div>
 
                   {/* Prestações */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl p-4 border border-green-200 dark:border-green-800">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                    <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl p-3 sm:p-4 border border-green-200 dark:border-green-800">
                       <p className="text-xs text-muted-foreground mb-1">1ª Prestação</p>
-                      <p className="text-2xl font-bold text-green-700 dark:text-green-400">
+                      <p className="text-lg sm:text-2xl font-bold text-green-700 dark:text-green-400">
                         {resultados.dados.Primeira_Prestacao}
                       </p>
                     </div>
-                    <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4 border">
+                    <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3 sm:p-4 border">
                       <p className="text-xs text-muted-foreground mb-1">Última Prestação</p>
-                      <p className="text-2xl font-bold">{resultados.dados.Ultima_Prestacao}</p>
+                      <p className="text-lg sm:text-2xl font-bold">{resultados.dados.Ultima_Prestacao}</p>
                     </div>
                   </div>
 
@@ -407,7 +396,7 @@ function SimuladorCaixaContent() {
                       <TrendingUp className="w-4 h-4 text-blue-600" />
                       Composição da Prestação
                     </h4>
-                    <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm">
                       <div className="flex justify-between items-center py-2 px-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
                         <span className="text-muted-foreground flex items-center gap-2">
                           <DollarSign className="w-3 h-3" />
@@ -447,7 +436,7 @@ function SimuladorCaixaContent() {
                       <Info className="w-4 h-4 text-blue-600" />
                       Detalhes do Financiamento
                     </h4>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-2 gap-y-1 text-xs sm:text-sm">
                       <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-700">
                         <span className="text-muted-foreground">Sistema</span>
                         <span className="font-medium">{resultados.dados.Sistema_Amortizacao}</span>
@@ -468,12 +457,12 @@ function SimuladorCaixaContent() {
                   </div>
 
                   {/* Fator MIP */}
-                  <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
-                    <div className="flex items-start gap-3">
-                      <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-3 sm:p-4">
+                    <div className="flex items-start gap-2 sm:gap-3">
+                      <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 mt-0.5 flex-shrink-0" />
                       <div>
-                        <p className="font-medium text-amber-800 dark:text-amber-200">Seguro MIP por Idade</p>
-                        <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                        <p className="font-medium text-sm sm:text-base text-amber-800 dark:text-amber-200">Seguro MIP por Idade</p>
+                        <p className="text-xs sm:text-sm text-amber-700 dark:text-amber-300 mt-1">
                           Para {resultados.dados.Idade_Calculada}, o fator MIP aplicado é <strong>{resultados.dados.Fator_MIP}x</strong> a taxa base.
                         </p>
                         <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
