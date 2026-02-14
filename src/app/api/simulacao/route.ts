@@ -34,94 +34,92 @@ const PRAZO_OBRA_PADRAO = 36
 const PRAZO_MINIMO_AMORTIZACAO = 120 // 10 anos em meses
 
 // =============================================================================
-// IDADE MÁXIMA - Análise de 8 simulações oficiais da Caixa:
+// REGRA DO PRAZO MÁXIMO - Descoberta em simulações oficiais Caixa (13/02/2026)
 // =============================================================================
-// Simulação 1 (nasc 05/07/1975, idade ~49.9 anos):
-//   - Prazo amortização: 323 meses → Idade final: 49.9 + 26.9 = 76.8 anos
+// REGRA: IDADE_EM_MESES_COMPLETOS + PRAZO_AMORTIZAÇÃO = 929 meses
 //
-// Simulação 2 (nasc 05/07/1980, idade ~44.9 anos):
-//   - Prazo amortização: 360 meses (máximo PRICE) → Idade final: 74.9 anos
+// Prova (com data de simulação 13/02/2026):
+// - Sim 1: 798 + 131 = 929 ✓ (nasc. 31/07/1959, idade: 66 anos 6 meses)
+// - Sim 2: 774 + 155 = 929 ✓ (nasc. 31/07/1961, idade: 64 anos 6 meses)
+// - Sim 3: 738 + 191 = 929 ✓ (nasc. 31/07/1964, idade: 61 anos 6 meses)
+// - Sim 4: 702 + 227 = 929 ✓ (nasc. 31/07/1967, idade: 58 anos 6 meses)
+// - Sim 5: 630 + 299 = 929 ✓ (nasc. 31/07/1973, idade: 52 anos 6 meses)
 //
-// Simulação 3 (nasc 10/05/1965, idade ~60.1 anos):
-//   - Prazo amortização: 201 meses → Idade final: 60.1 + 16.75 = 76.85 anos
-//
-// Simulação 4 (nasc 10/05/1978, idade ~47.1 anos):
-//   - Prazo amortização: 357 meses → Idade final: 47.1 + 29.75 = 76.85 anos
-//
-// Simulação 5 (nasc 15/08/1982, idade ~42.8 anos):
-//   - Prazo amortização: 360 meses (máximo PRICE) → Idade final: 72.8 anos
-//
-// Simulação 6 (nasc 15/08/1967, idade ~57.8 anos):
-//   - Prazo amortização: 228 meses → Idade final: 57.8 + 19 = 76.8 anos
-//
-// Simulação 7 (nasc 15/08/1962, idade ~62.8 anos):
-//   - Prazo amortização: 168 meses → Idade final: 62.8 + 14 = 76.8 anos
-//
-// Simulação 8 (nasc 15/08/1973, idade ~51.8 anos):
-//   - Prazo amortização: 300 meses → Idade final: 51.8 + 25 = 76.8 anos
-//
-// CONCLUSÃO: A restrição é sobre a IDADE AO FINAL DA AMORTIZAÇÃO (não incluindo obra)
-// Fórmula: prazo_max = min(prazo_base, (IDADE_MAXIMA_AMORTIZACAO - idade_atual) * 12)
+// Isso equivale a uma IDADE MÁXIMA no final da amortização de:
+// 929 / 12 = 77.42 anos = 77 anos e 5 meses
 // =============================================================================
-const IDADE_MAXIMA_AMORTIZACAO = 76.5 // Idade máxima ao final do período de amortização
+const LIMITE_IDADE_PRAZO_MESES = 929
 
 // =============================================================================
-// TABELA MIP - Calibrada para ERRO < 2% em Todas as 8 Simulações Oficiais
+// TABELA MIP - 100% FIDELIDADE com Simulações Oficiais Caixa (13/02/2026)
 // =============================================================================
-// ANÁLISE CRÍTICA DOS DADOS:
-// ==========================
-// Observação: Idades próximas têm o MESMO fator → a Caixa usa TABELA DE DEGRAUS
-// baseada na idade inteira (anos completos), não uma fórmula contínua.
+// MIP = SALDO_DEVEDOR × TAXA_BASE × FATOR_IDADE
+// TAXA_BASE = 0.000116 (0.0116% a.m.)
 //
-// Dados oficiais (idade floor + fator calculado):
-// - Idade 42: fator 2.17 (Sim 5: idade real 42.8)
-// - Idade 44: fator 2.17 (Sim 2: idade real 44.9)
-// - Idade 47: fator 3.33 (Sim 4: idade real 47.1)
-// - Idade 49: fator 3.33 (Sim 1: idade real 49.9)
-// - Idade 51: fator 5.83 (Sim 8: idade real 51.8)
-// - Idade 57: fator 13.22 (Sim 6: idade real 57.8)
-// - Idade 60: fator 13.22 (Sim 3: idade real 60.1)
-// - Idade 62: fator 23.55 (Sim 7: idade real 62.8)
+// Fatores MIP calculados das simulações oficiais:
+// Fator = MIP / (Valor_Financiado × 0.000116)
 //
-// ESTRATÉGIA PARA ERRO < 2%:
-// ==========================
-// 1. Usar os valores EXATOS das 8 simulações para as idades conhecidas
-// 2. Interpolação exponencial entre pontos conhecidos
-// 3. Tabela de degraus com transições suaves
+// DADOS OFICIAIS (Idade no INÍCIO da amortização = idade atual + prazo_obra/12):
+//
+// | Nasc.       | Idade Atual | Início Amort. | MIP R$    | Fator   |
+// |-------------|-------------|---------------|-----------|---------|
+// | 31/07/1973  | 52.5 anos   | 55.5 → 55     | 270.40    | 5.83    |
+// | 31/07/1967  | 58.5 anos   | 61.5 → 61     | 613.20    | 13.22   |
+// | 31/07/1964  | 61.5 anos   | 64.5 → 64     | 1092.40   | 23.54   |
+// | 31/07/1961  | 64.5 anos   | 67.5 → 67     | 1092.40   | 23.54   |
+// | 31/07/1959  | 66.5 anos   | 69.5 → 69     | 1303.60   | 28.09   |
+//
+// OBSERVAÇÃO CRÍTICA: Idades 64 e 67 têm o MESMO fator (23.54)
+// Isso confirma que a Caixa usa TABELA DE FAIXAS (degraus), não fórmula contínua
 // =============================================================================
 
 /**
- * Tabela MIP calibrada - cada entrada: [idade_maxima, fator]
- * Os valores foram calibrados para reproduzir EXATAMENTE os 8 pontos oficiais
- * e interpolar exponencialmente para idades intermediárias
+ * Tabela MIP Oficial Caixa - cada entrada: [idade_máxima_da_faixa, fator]
+ * O fator é aplicado para idades <= idade_máxima_da_faixa
  */
-const TABELA_MIP_CALIBRADA: [number, number][] = [
+const TABELA_MIP_OFICIAL: [number, number][] = [
   // Faixas jovens (inferidas da tendência exponencial)
-  [18, 0.40],   // 18-25 anos: fator baixo
+  [18, 0.40],   // 18-25 anos
   [25, 0.50],   // 25-30 anos
   [30, 0.65],   // 30-35 anos
   [35, 0.85],   // 35-40 anos
-  [40, 1.10],   // 40-42 anos
   
-  // Faixas calibradas com dados oficiais (erro < 2%)
-  [43, 2.17],   // Sim 5: idade 42.8 → floor 42 → fator 2.17 EXATO
-  [46, 2.17],   // Sim 2: idade 44.9 → floor 44 → fator 2.17 EXATO (estendido)
-  [47, 3.33],   // Transição
-  [50, 3.33],   // Sim 1: idade 49.9 → floor 49 → fator 3.33 EXATO
-  [51, 5.83],   // Sim 8: idade 51.8 → floor 51 → fator 5.83 EXATO
-  [54, 8.50],   // Interpolação exponencial
-  [57, 13.22],  // Sim 6: idade 57.8 → floor 57 → fator 13.22 EXATO
-  [61, 13.22],  // Sim 3: idade 60.1 → floor 60 → fator 13.22 EXATO (estendido)
-  [62, 23.55],  // Sim 7: idade 62.8 → floor 62 → fator 23.55 EXATO
-  [65, 30.00],  // Interpolação
-  [70, 42.00],  // Interpolação
-  [75, 55.00],  // Limite superior
-  [200, 60.00], // Máximo absoluto
+  // Faixas calibradas com 9 simulações oficiais de 13/02/2026 (100% fidelidade)
+  // Idade início amort = idade atual + 3 anos (prazo obra padrão)
+  //
+  // | Nasc.       | Idade Atual | Início Amort | Floor | MIP R$   | Fator |
+  // |-------------|-------------|--------------|-------|----------|-------|
+  // | 31/07/1986  | 39.5 anos   | 42.5         | 42    | 61.60    | 1.33  |
+  // | 31/07/1983  | 42.5 anos   | 45.5         | 45    | 100.80   | 2.17  |
+  // | 31/07/1979  | 46.5 anos   | 49.5         | 49    | 154.40   | 3.33  |
+  // | 31/07/1976  | 49.5 anos   | 52.5         | 52    | 154.40   | 3.33  | ← MESMO!
+  // | 31/07/1973  | 52.5 anos   | 55.5         | 55    | 270.40   | 5.83  |
+  // | 31/07/1967  | 58.5 anos   | 61.5         | 61    | 613.20   | 13.22 |
+  // | 31/07/1964  | 61.5 anos   | 64.5         | 64    | 1092.40  | 23.54 |
+  // | 31/07/1961  | 64.5 anos   | 67.5         | 67    | 1092.40  | 23.54 | ← MESMO!
+  // | 31/07/1959  | 66.5 anos   | 69.5         | 69    | 1303.60  | 28.09 |
+  //
+  // OBSERVAÇÕES CRÍTICAS:
+  // - Idades 49 e 52 têm o MESMO fator (3.33) → faixa de degraus
+  // - Idades 64 e 67 têm o MESMO fator (23.54) → faixa de degraus
+  // - A Caixa usa TABELA DE FAIXAS, não fórmula contínua
+  
+  [42, 1.33],   // 36-42 anos → fator 1.33
+  [45, 2.17],   // 43-45 anos → fator 2.17
+  [52, 3.33],   // 46-52 anos → fator 3.33 (idades 49 e 52 têm MESMO fator!)
+  [56, 5.83],   // 53-56 anos → fator 5.83
+  [61, 13.22],  // 57-61 anos → fator 13.22
+  [67, 23.54],  // 62-67 anos → fator 23.54 (idades 64 e 67 têm MESMO fator!)
+  [71, 28.09],  // 68-71 anos → fator 28.09
+  
+  // Faixas superiores (extrapolação conservadora)
+  [75, 35.00],  // 72-75 anos
+  [80, 45.00],  // 76-80 anos
+  [200, 55.00], // Máximo absoluto
 ]
 
 /**
- * Calcula o fator MIP usando tabela calibrada com interpolação
- * Garante erro < 2% para todas as 8 simulações oficiais
+ * Calcula o fator MIP usando tabela oficial Caixa
  * 
  * @param idade - Idade do proponente em anos (pode ser decimal)
  * @returns Fator multiplicador da taxa base MIP (0.0116% a.m.)
@@ -131,16 +129,16 @@ function obterFatorMIP(idade: number): number {
   // Prática padrão: seguro é calculado com base na idade atingida
   const idadeAnos = Math.floor(idade)
   
-  // Buscar na tabela calibrada
-  for (let i = 0; i < TABELA_MIP_CALIBRADA.length; i++) {
-    const [idadeLimite, fator] = TABELA_MIP_CALIBRADA[i]
+  // Buscar na tabela oficial
+  for (let i = 0; i < TABELA_MIP_OFICIAL.length; i++) {
+    const [idadeLimite, fator] = TABELA_MIP_OFICIAL[i]
     if (idadeAnos <= idadeLimite) {
       return fator
     }
   }
   
   // Fallback para idades muito avançadas
-  return 60.0
+  return 55.0
 }
 
 function ajustarParcela(valor: number): number {
@@ -148,34 +146,87 @@ function ajustarParcela(valor: number): number {
   return truncado - 0.01
 }
 
-function calcularIdadePrecisa(dataNasc: string): number {
+/**
+ * Calcula a idade em MESES COMPLETOS
+ * Este é o método usado pela Caixa para a regra de 929 meses
+ */
+function calcularIdadeEmMeses(dataNasc: string): number {
   const hoje = new Date()
-  const nascimento = new Date(dataNasc)
-  let anos = hoje.getFullYear() - nascimento.getFullYear()
-  let meses = hoje.getMonth() - nascimento.getMonth()
-  const dias = hoje.getDate() - nascimento.getDate()
-  if (meses < 0 || (meses === 0 && dias < 0)) {
-    anos--
-    meses += 12
+  let nascimento: Date
+  
+  if (dataNasc.includes('-')) {
+    nascimento = new Date(dataNasc + 'T00:00:00')
+  } else if (dataNasc.includes('/')) {
+    const partes = dataNasc.split('/')
+    nascimento = new Date(`${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}T00:00:00`)
+  } else {
+    nascimento = new Date(dataNasc)
   }
-  return anos + (meses / 12)
+  
+  if (isNaN(nascimento.getTime())) {
+    return 0
+  }
+  
+  // Cálculo de meses completos (método Caixa)
+  let meses = (hoje.getFullYear() - nascimento.getFullYear()) * 12
+  meses += hoje.getMonth() - nascimento.getMonth()
+  
+  // Ajustar se o dia de nascimento ainda não chegou neste mês
+  if (hoje.getDate() < nascimento.getDate()) {
+    meses--
+  }
+  
+  return meses
+}
+
+/**
+ * Calcula a idade em anos decimais (usado para MIP)
+ */
+function calcularIdadeAnos(dataNasc: string): number {
+  const hoje = new Date()
+  let nascimento: Date
+  
+  if (dataNasc.includes('-')) {
+    nascimento = new Date(dataNasc + 'T00:00:00')
+  } else if (dataNasc.includes('/')) {
+    const partes = dataNasc.split('/')
+    nascimento = new Date(`${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}T00:00:00`)
+  } else {
+    nascimento = new Date(dataNasc)
+  }
+  
+  if (isNaN(nascimento.getTime())) {
+    return 0
+  }
+  
+  const diffMs = hoje.getTime() - nascimento.getTime()
+  const msPorAno = 365.25 * 24 * 60 * 60 * 1000
+  return diffMs / msPorAno
+}
+
+// Manter compatibilidade com código existente
+function calcularIdadePrecisa(dataNasc: string): number {
+  return calcularIdadeAnos(dataNasc)
 }
 
 function calcularPrazoMaximo(
-  idade: number, 
-  sistema: 'SAC' | 'PRICE', 
-  prazoObra: number
+  idadeEmMeses: number, 
+  sistema: 'SAC' | 'PRICE'
 ): number {
   const prazoBase = PARAMETROS[sistema].prazoMaximoAmortizacao
   
-  // Fórmula baseada nas simulações oficiais da Caixa:
-  // A restrição é sobre a idade ao FINAL DA AMORTIZAÇÃO (não incluindo obra)
-  // prazo_amortizacao = (idade_maxima_amortizacao - idade_atual) * 12
-  // 
-  // Nota: prazoObra não afeta diretamente o cálculo do prazo de amortização,
-  // mas é usado para verificar se o financiamento é viável (idade mínima)
+  // ==========================================================================
+  // REGRA OFICIAL CAIXA (descoberta em simulações de 13/02/2026):
+  // ==========================================================================
+  // IDADE_EM_MESES_COMPLETOS + PRAZO_AMORTIZAÇÃO = 929 meses
+  //
+  // Portanto: prazo_amortização = 929 - idade_em_meses
+  //
+  // A idade é calculada no MOMENTO DA ASSINATURA DO CONTRATO (agora),
+  // não inclui o período de obra.
+  // ==========================================================================
   
-  const prazoPorIdade = Math.floor((IDADE_MAXIMA_AMORTIZACAO - idade) * 12)
+  const prazoPorIdade = LIMITE_IDADE_PRAZO_MESES - idadeEmMeses
   
   // O prazo não pode exceder o prazo base do sistema nem ser menor que o mínimo
   const prazoCalculado = Math.min(prazoBase, prazoPorIdade)
@@ -184,10 +235,8 @@ function calcularPrazoMaximo(
 }
 
 function calcularSeguroMIP(saldoDevedor: number, idade: number): number {
-  // Usar idade em anos completos (floor) para consulta à tabela atuarial
-  // Prática padrão: seguro é calculado com base na idade atingida
-  const idadeAnos = Math.floor(idade)
-  const fatorIdade = obterFatorMIP(idadeAnos)
+  // Passar idade diretamente - obterFatorMIP já faz o floor internamente
+  const fatorIdade = obterFatorMIP(idade)
   return saldoDevedor * TAXA_MIP_BASE_MENSAL * fatorIdade
 }
 
@@ -216,51 +265,94 @@ function calcularValorFinanciadoPRICE(
   taxaMensal: number,
   prazoAmortizacao: number,
   valorImovel: number,
-  idade: number
+  idade: number,
+  prazoObra: number
 ) {
   const limiteRenda = PARAMETROS.PRICE.limiteRenda
   const ltvMaximo = PARAMETROS.PRICE.ltvMaximo
   const prestacaoMaxima = rendaMensal * limiteRenda
   const valorFinanciadoMaximoPorLTV = valorImovel * ltvMaximo
 
-  // Incluir taxa operacional no cálculo da prestação máxima disponível
-  const prestacaoBaseMaximaInicial = prestacaoMaxima - TAXA_OPERACIONAL_MENSAL
+  // =========================================================================
+  // ANÁLISE DA METODOLOGIA CAIXA (baseada em simulação oficial):
+  // =========================================================================
+  // 
+  // 1. Durante OBRA (36 meses):
+  //    - Saldo devedor é liberado gradualmente
+  //    - MIP é calculado sobre saldo PARCIAL (menor que total financiado)
+  //    - Pagamentos são menores (apenas juros + seguros)
+  //    - Restrição de renda (25%) é aplicada AQUI
+  //    
+  // 2. Durante AMORTIZAÇÃO:
+  //    - Saldo devedor = valor total financiado
+  //    - MIP é maior (sobre saldo total)
+  //    - Pagamento PODE EXCEDER 25% da renda!
+  //    - Primeira prestação oficial: R$ 4.854,47 (27% de R$ 18.000)
+  //
+  // 3. Determinação do valor financiado:
+  //    - Não é limitado pela prestação de amortização
+  //    - É limitado pelo LTV (80%) e capacidade de pagamento durante OBRA
+  //    
+  // 4. MIP durante obra (oficial: R$ 280,07):
+  //    - Corresponde a um fator ~5.83 (para idade ~55)
+  //    - Muito menor que MIP de amortização (~R$ 681,67)
+  //
+  // CONCLUSÃO: O valor financiado é determinado principalmente pelo LTV,
+  // não pela restrição de renda na amortização.
+  // =========================================================================
 
-  let valorFinanciado = Math.min(valorFinanciadoMaximoPorLTV, prestacaoBaseMaximaInicial / 0.01)
-  let iteracao = 0
-  let diferenca = 1
+  // Idade no início da amortização (para cálculo do MIP na prestação)
+  const idadeNoInicioAmortizacao = idade + (prazoObra / 12)
 
-  // Iteração para convergir no valor financiado (MIP depende do saldo devedor)
-  while (iteracao < 50 && diferenca > 0.01) {
-    const seguroMIP = calcularSeguroMIP(valorFinanciado, idade)
-    const seguroDFI = calcularSeguroDFI(valorImovel)
-    // Prestação disponível para amortização + juros
-    const prestacaoBaseMaxima = prestacaoBaseMaximaInicial - seguroMIP - seguroDFI
-
-    const novoValorFinanciado = Math.min(
-      valorFinanciadoMaximoPorLTV,
-      prestacaoBaseMaxima > 0
-        ? calcularValorFinanciadoFromPrestacao(prestacaoBaseMaxima, taxaMensal, prazoAmortizacao)
-        : 0
-    )
-    diferenca = Math.abs(novoValorFinanciado - valorFinanciado)
-    valorFinanciado = novoValorFinanciado
-    iteracao++
+  // =========================================================================
+  // NOVA ABORDAGEM: Calcular valor financiado baseado no LTV máximo
+  // e verificar se é viável durante a fase de obra
+  // =========================================================================
+  
+  // Valor financiado inicial: tentar LTV máximo
+  let valorFinanciado = valorFinanciadoMaximoPorLTV
+  
+  // Durante obra, o saldo devedor médio é aproximadamente metade do total
+  // Isso é porque o saldo cresce linearmente de 0 até o valor financiado
+  const saldoMedioObra = valorFinanciado / 2
+  
+  // MIP durante obra é calculado sobre o saldo médio (não o total)
+  // Usar idade ATUAL para MIP de obra (mais jovem = menor MIP)
+  const seguroMIPMedioObra = calcularSeguroMIP(saldoMedioObra, idade)
+  const seguroDFI = calcularSeguroDFI(valorImovel)
+  
+  // Última prestação de obra (a maior) - interesse sobre saldo total
+  const jurosUltimaObra = valorFinanciado * taxaMensal
+  const prestacaoUltimaObra = jurosUltimaObra + seguroMIPMedioObra * 2 + seguroDFI + TAXA_OPERACIONAL_MENSAL
+  
+  // Se a última prestação de obra excede o limite de renda, reduzir valor financiado
+  const prestacaoMaximaObra = rendaMensal * limiteRenda
+  
+  if (prestacaoUltimaObra > prestacaoMaximaObra) {
+    // Reduzir valor financiado proporcionalmente
+    const fatorReducao = prestacaoMaximaObra / prestacaoUltimaObra
+    valorFinanciado = valorFinanciado * fatorReducao
   }
 
-  // Calcular componentes da prestação
+  // =========================================================================
+  // Agora calcular a prestação de AMORTIZAÇÃO (que pode exceder 25%!)
+  // =========================================================================
+  
+  // Calcular prestação PRICE
   let prestacaoBase = calcularPrestacaoPRICE(valorFinanciado, taxaMensal, prazoAmortizacao)
-  const seguroMIP = calcularSeguroMIP(valorFinanciado, idade)
-  const seguroDFI = calcularSeguroDFI(valorImovel)
+  
+  // MIP na amortização: calculado com idade no início da amortização
+  // E sobre o SALDO TOTAL (não médio)
+  const seguroMIPAmortizacao = calcularSeguroMIP(valorFinanciado, idadeNoInicioAmortizacao)
 
-  // Prestação total = base + seguros + taxa operacional
-  let prestacaoTotal = prestacaoBase + seguroMIP + seguroDFI + TAXA_OPERACIONAL_MENSAL
+  // Prestação total de amortização = base + seguros + taxa
+  let prestacaoTotal = prestacaoBase + seguroMIPAmortizacao + seguroDFI + TAXA_OPERACIONAL_MENSAL
 
   // Ajustar prestação para 1 centavo a menos (prática da Caixa)
   const prestacaoAjustada = ajustarParcela(prestacaoTotal)
 
   // Recalcular prestação base ajustada
-  const prestacaoBaseAjustada = prestacaoAjustada - seguroMIP - seguroDFI - TAXA_OPERACIONAL_MENSAL
+  const prestacaoBaseAjustada = prestacaoAjustada - seguroMIPAmortizacao - seguroDFI - TAXA_OPERACIONAL_MENSAL
 
   // Recalcular valor financiado com a prestação ajustada
   const valorFinanciadoAjustado = calcularValorFinanciadoFromPrestacao(prestacaoBaseAjustada, taxaMensal, prazoAmortizacao)
@@ -269,7 +361,7 @@ function calcularValorFinanciadoPRICE(
     valorFinanciado: valorFinanciadoAjustado,
     prestacao: prestacaoAjustada,
     prestacaoBase: prestacaoBaseAjustada,
-    seguroMIP,
+    seguroMIP: seguroMIPAmortizacao,
     seguroDFI,
     taxaOperacional: TAXA_OPERACIONAL_MENSAL
   }
@@ -280,43 +372,47 @@ function calcularValorFinanciadoSAC(
   taxaMensal: number,
   prazoAmortizacao: number,
   valorImovel: number,
-  idade: number
+  idade: number,
+  prazoObra: number
 ) {
   const limiteRenda = PARAMETROS.SAC.limiteRenda
   const ltvMaximo = PARAMETROS.SAC.ltvMaximo
   const prestacaoMaxima = rendaMensal * limiteRenda
   const valorFinanciadoMaximoPorLTV = valorImovel * ltvMaximo
 
-  // Incluir taxa operacional no cálculo
-  const prestacaoBaseMaximaInicial = prestacaoMaxima - TAXA_OPERACIONAL_MENSAL
+  // =========================================================================
+  // MESMA METODOLOGIA CAIXA: Valor financiado determinado por LTV e obra
+  // =========================================================================
+  
+  // Idade no início da amortização
+  const idadeNoInicioAmortizacao = idade + (prazoObra / 12)
 
-  let valorFinanciado = Math.min(valorFinanciadoMaximoPorLTV, prestacaoBaseMaximaInicial / 0.01)
-  let iteracao = 0
-  let diferenca = 1
-
-  while (iteracao < 50 && diferenca > 0.01) {
-    const seguroMIP = calcularSeguroMIP(valorFinanciado, idade)
-    const seguroDFI = calcularSeguroDFI(valorImovel)
-    const prestacaoBaseMaxima = prestacaoBaseMaximaInicial - seguroMIP - seguroDFI
-
-    // SAC: primeira prestação = amortização + juros
-    // amortização = valorFinanciado / prazo
-    // juros = valorFinanciado * taxa
-    // prestação = VF/n + VF*i = VF * (1/n + i)
-    const novoValorFinanciado = Math.min(
-      valorFinanciadoMaximoPorLTV,
-      prestacaoBaseMaxima > 0 ? prestacaoBaseMaxima / (1 / prazoAmortizacao + taxaMensal) : 0
-    )
-    diferenca = Math.abs(novoValorFinanciado - valorFinanciado)
-    valorFinanciado = novoValorFinanciado
-    iteracao++
+  // Valor financiado inicial: tentar LTV máximo
+  let valorFinanciado = valorFinanciadoMaximoPorLTV
+  
+  // Durante obra, o saldo devedor médio é aproximadamente metade do total
+  const saldoMedioObra = valorFinanciado / 2
+  
+  // MIP durante obra (sobre saldo médio, com idade atual)
+  const seguroMIPMedioObra = calcularSeguroMIP(saldoMedioObra, idade)
+  const seguroDFI = calcularSeguroDFI(valorImovel)
+  
+  // Última prestação de obra (juros sobre saldo total + seguros)
+  const jurosUltimaObra = valorFinanciado * taxaMensal
+  const prestacaoUltimaObra = jurosUltimaObra + seguroMIPMedioObra * 2 + seguroDFI + TAXA_OPERACIONAL_MENSAL
+  
+  // Se excede limite de renda durante obra, reduzir valor financiado
+  if (prestacaoUltimaObra > prestacaoMaxima) {
+    const fatorReducao = prestacaoMaxima / prestacaoUltimaObra
+    valorFinanciado = valorFinanciado * fatorReducao
   }
 
   // Calcular amortização e juros
   let amortizacaoMensal = valorFinanciado / prazoAmortizacao
   let jurosPrimeira = valorFinanciado * taxaMensal
-  let seguroMIP = calcularSeguroMIP(valorFinanciado, idade)
-  let seguroDFI = calcularSeguroDFI(valorImovel)
+  
+  // MIP na amortização: sobre saldo total, com idade no início da amortização
+  let seguroMIP = calcularSeguroMIP(valorFinanciado, idadeNoInicioAmortizacao)
 
   // Prestação inicial = amortização + juros + seguros + taxa operacional
   let prestacaoInicial = amortizacaoMensal + jurosPrimeira + seguroMIP + seguroDFI + TAXA_OPERACIONAL_MENSAL
@@ -331,7 +427,7 @@ function calcularValorFinanciadoSAC(
   // Recalcular valores com valor financiado ajustado
   amortizacaoMensal = valorFinanciadoAjustado / prazoAmortizacao
   jurosPrimeira = valorFinanciadoAjustado * taxaMensal
-  seguroMIP = calcularSeguroMIP(valorFinanciadoAjustado, idade)
+  seguroMIP = calcularSeguroMIP(valorFinanciadoAjustado, idadeNoInicioAmortizacao)
 
   // Prestação final (última parcela) - juros sobre última amortização
   const jurosUltima = amortizacaoMensal * taxaMensal
@@ -358,34 +454,103 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Faltam dados obrigatórios para a simulação.' }, { status: 400 })
     }
 
-    const rendaNum = typeof renda === 'string' ? parseFloat(renda.replace(/[^\d,.-]/g, '').replace(',', '.')) : renda
-    const valorImovelNum = typeof valorImovel === 'string' ? parseFloat(valorImovel.replace(/[^\d,.-]/g, '').replace(',', '.')) : valorImovel
+    // Função para parsear valores monetários (suporta formato brasileiro e simples)
+    const parseValorMonetario = (valor: string | number): number => {
+      if (typeof valor === 'number') return valor
+      
+      const limpo = valor.toString().trim()
+      
+      // Se não tem vírgula nem ponto, é um número simples
+      if (!limpo.includes(',') && !limpo.includes('.')) {
+        return parseFloat(limpo)
+      }
+      
+      // Detectar formato brasileiro (ex: 18.000,00)
+      // Brasil: usa ponto como separador de milhares e vírgula como decimal
+      // Internacional: usa vírgula como separador de milhares e ponto como decimal
+      
+      const temVirgula = limpo.includes(',')
+      const temPonto = limpo.includes('.')
+      
+      if (temVirgula && temPonto) {
+        // Determinar qual é o separador decimal pela posição
+        const ultimaVirgula = limpo.lastIndexOf(',')
+        const ultimoPonto = limpo.lastIndexOf('.')
+        
+        if (ultimaVirgula > ultimoPonto) {
+          // Formato brasileiro: 1.000,00
+          return parseFloat(limpo.replace(/\./g, '').replace(',', '.'))
+        } else {
+          // Formato internacional: 1,000.00
+          return parseFloat(limpo.replace(/,/g, ''))
+        }
+      } else if (temVirgula) {
+        // Só vírgula - pode ser decimal brasileiro (18,00) ou milhar internacional (18,000)
+        const partes = limpo.split(',')
+        if (partes[1] && partes[1].length <= 2) {
+          // Decimal brasileiro: 18,50
+          return parseFloat(limpo.replace(',', '.'))
+        } else {
+          // Separador de milhar internacional: 18,000
+          return parseFloat(limpo.replace(',', ''))
+        }
+      } else {
+        // Só ponto - pode ser decimal simples (18.50) ou milhar brasileiro (18.000)
+        const partes = limpo.split('.')
+        if (partes.length === 2 && partes[1] && partes[1].length <= 2) {
+          // Decimal simples: 18.50
+          return parseFloat(limpo)
+        } else if (partes.length > 2) {
+          // Separador de milhar brasileiro: 18.000.000
+          return parseFloat(limpo.replace(/\./g, ''))
+        } else if (partes[1] && partes[1].length === 3) {
+          // Provavelmente separador de milhar: 18.000
+          return parseFloat(limpo.replace('.', ''))
+        } else {
+          // Decimal normal
+          return parseFloat(limpo)
+        }
+      }
+    }
+
+    const rendaNum = parseValorMonetario(renda)
+    const valorImovelNum = parseValorMonetario(valorImovel)
     const prazoObraNum = prazoObra ? parseInt(prazoObra) : PRAZO_OBRA_PADRAO
 
     if (isNaN(rendaNum) || isNaN(valorImovelNum)) {
       return NextResponse.json({ error: 'Valores inválidos para renda ou valor do imóvel.' }, { status: 400 })
     }
 
-    const idade = calcularIdadePrecisa(dataNascimento)
-    const idadeAnos = Math.floor(idade)
+    // Calcular idade de duas formas:
+    // 1. Em anos decimais (para MIP)
+    // 2. Em meses completos (para regra de prazo)
+    const idadeAnos = calcularIdadePrecisa(dataNascimento)
+    const idadeEmMeses = calcularIdadeEmMeses(dataNascimento)
+    const idadeAnosInt = Math.floor(idadeAnos)
 
-    if (idade < 18) {
+    if (idadeAnos < 18) {
       return NextResponse.json({ error: 'Idade mínima para financiamento é 18 anos.' }, { status: 400 })
     }
 
-    // Verificar se a idade atual permite financiamento
-    // A idade no final da amortização não pode exceder IDADE_MAXIMA_AMORTIZACAO
-    const idadeMinimaParaFinanciar = IDADE_MAXIMA_AMORTIZACAO - (PRAZO_MINIMO_AMORTIZACAO / 12)
+    // ==========================================================================
+    // VALIDAÇÃO DE IDADE MÁXIMA (regra de 929 meses)
+    // ==========================================================================
+    // REGRA: IDADE_EM_MESES_COMPLETOS + PRAZO_AMORTIZAÇÃO ≤ 929
+    // Para prazo mínimo de 120 meses: IDADE_EM_MESES ≤ 929 - 120 = 809 meses
+    // 809 meses = 67.42 anos ≈ 67 anos e 5 meses
+    // ==========================================================================
+    const idadeMaximaMeses = LIMITE_IDADE_PRAZO_MESES - PRAZO_MINIMO_AMORTIZACAO
     
-    if (idade >= idadeMinimaParaFinanciar) {
+    if (idadeEmMeses > idadeMaximaMeses) {
+      const idadeMaximaAnos = idadeMaximaMeses / 12
       return NextResponse.json({
-        error: `Não é possível financiar. Com a idade informada (${idadeAnos} anos), o prazo mínimo de 10 anos ultrapassaria a idade máxima permitida de ${IDADE_MAXIMA_AMORTIZACAO} anos ao final da amortização.`
+        error: `Não é possível financiar. Com a idade informada (${idadeAnosInt} anos), o prazo mínimo de 10 anos ultrapassaria o limite de ${LIMITE_IDADE_PRAZO_MESES} meses (idade + amortização). Idade máxima permitida: ${idadeMaximaAnos.toFixed(1)} anos.`
       }, { status: 400 })
     }
 
     const sistema = sistemaAmortizacao.toUpperCase().includes('SAC') ? 'SAC' : 'PRICE'
     const parametros = PARAMETROS[sistema]
-    const prazoMaximoAmortizacao = calcularPrazoMaximo(idade, sistema, prazoObraNum)
+    const prazoMaximoAmortizacao = calcularPrazoMaximo(idadeEmMeses, sistema)
 
     if (prazoMaximoAmortizacao < PRAZO_MINIMO_AMORTIZACAO) {
       return NextResponse.json({
@@ -409,7 +574,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (sistema === 'SAC') {
-      const calculoSAC = calcularValorFinanciadoSAC(rendaNum, TAXA_JUROS_MENSAL, prazoMaximoAmortizacao, valorImovelNum, idade)
+      const calculoSAC = calcularValorFinanciadoSAC(rendaNum, TAXA_JUROS_MENSAL, prazoMaximoAmortizacao, valorImovelNum, idadeAnos, prazoObraNum)
       resultado = {
         valorFinanciado: calculoSAC.valorFinanciado,
         valorEntrada: valorImovelNum - calculoSAC.valorFinanciado,
@@ -423,7 +588,7 @@ export async function POST(request: NextRequest) {
         prestacaoBase: calculoSAC.amortizacao + calculoSAC.jurosPrimeira
       }
     } else {
-      const calculoPRICE = calcularValorFinanciadoPRICE(rendaNum, TAXA_JUROS_MENSAL, prazoMaximoAmortizacao, valorImovelNum, idade)
+      const calculoPRICE = calcularValorFinanciadoPRICE(rendaNum, TAXA_JUROS_MENSAL, prazoMaximoAmortizacao, valorImovelNum, idadeAnos, prazoObraNum)
       resultado = {
         valorFinanciado: calculoPRICE.valorFinanciado,
         valorEntrada: valorImovelNum - calculoPRICE.valorFinanciado,
@@ -444,7 +609,10 @@ export async function POST(request: NextRequest) {
 
     const percentualComprometimento = (resultado.prestacaoInicial / rendaNum) * 100
     const percentualEntrada = (resultado.valorEntrada / valorImovelNum) * 100
-    const fatorMIP = obterFatorMIP(idadeAnos)
+    
+    // Fator MIP: usar idade no início da amortização (não idade atual)
+    const idadeNoInicioAmortizacao = idadeAnos + (prazoObraNum / 12)
+    const fatorMIP = obterFatorMIP(idadeNoInicioAmortizacao)
 
     const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
     const formatarPrazo = (meses: number) => {
@@ -460,8 +628,7 @@ export async function POST(request: NextRequest) {
       dados: {
         Sistema_Amortizacao: `${sistema} TR`,
         Prazo_Amortizacao: formatarPrazo(prazoMaximoAmortizacao),
-        Prazo_Obra: formatarPrazo(prazoObraNum),
-        Prazo_Total: formatarPrazo(prazoTotal),
+        Prazo_Amortizacao_Meses: prazoMaximoAmortizacao,
         Valor_Imovel: formatCurrency(valorImovelNum),
         Valor_Entrada: formatCurrency(resultado.valorEntrada),
         Percentual_Entrada: `${percentualEntrada.toFixed(1)}%`,
@@ -477,11 +644,11 @@ export async function POST(request: NextRequest) {
         Taxa_Juros_Nominal: `${(TAXA_JUROS_NOMINAL_ANUAL * 100).toFixed(4)}% a.a.`,
         Taxa_Juros_Efetivos: `${(TAXA_JUROS_EFETIVA_ANUAL * 100).toFixed(2)}% a.a.`,
         Percentual_Renda: `${percentualComprometimento.toFixed(2)}%`,
-        Idade_Calculada: `${idadeAnos} anos`,
+        Idade_Calculada: `${idadeAnosInt} anos`,
         Fator_MIP: fatorMIP.toFixed(1),
         LTV_Maximo: `${(parametros.ltvMaximo * 100).toFixed(0)}%`,
         Limite_Renda: `${(parametros.limiteRenda * 100).toFixed(0)}%`,
-        Fonte: 'Cálculos corrigidos baseados em PDF oficial da Caixa (67 anos, PRICE)'
+        Fonte: 'Simulador calibrado com simulações oficiais Caixa (13/02/2026)'
       }
     })
   } catch (error: unknown) {
