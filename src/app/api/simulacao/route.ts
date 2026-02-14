@@ -274,85 +274,60 @@ function calcularValorFinanciadoPRICE(
   const valorFinanciadoMaximoPorLTV = valorImovel * ltvMaximo
 
   // =========================================================================
-  // ANÁLISE DA METODOLOGIA CAIXA (baseada em simulação oficial):
-  // =========================================================================
+  // REGRA OFICIAL: O limite de renda (25% para PRICE) aplica-se à PRESTAÇÃO
   // 
-  // 1. Durante OBRA (36 meses):
-  //    - Saldo devedor é liberado gradualmente
-  //    - MIP é calculado sobre saldo PARCIAL (menor que total financiado)
-  //    - Pagamentos são menores (apenas juros + seguros)
-  //    - Restrição de renda (25%) é aplicada AQUI
-  //    
-  // 2. Durante AMORTIZAÇÃO:
-  //    - Saldo devedor = valor total financiado
-  //    - MIP é maior (sobre saldo total)
-  //    - Pagamento PODE EXCEDER 25% da renda!
-  //    - Primeira prestação oficial: R$ 4.854,47 (27% de R$ 18.000)
+  // A prestação é composta por:
+  // - Prestação base (amortização + juros)
+  // - Seguro MIP
+  // - Seguro DFI
+  // - Taxa operacional
   //
-  // 3. Determinação do valor financiado:
-  //    - Não é limitado pela prestação de amortização
-  //    - É limitado pelo LTV (80%) e capacidade de pagamento durante OBRA
-  //    
-  // 4. MIP durante obra (oficial: R$ 280,07):
-  //    - Corresponde a um fator ~5.83 (para idade ~55)
-  //    - Muito menor que MIP de amortização (~R$ 681,67)
-  //
-  // CONCLUSÃO: O valor financiado é determinado principalmente pelo LTV,
-  // não pela restrição de renda na amortização.
+  // O valor financiado deve ser calculado para que a prestação total
+  // não exceda o limite de renda.
   // =========================================================================
 
-  // Idade no início da amortização (para cálculo do MIP na prestação)
+  // Idade no início da amortização (para cálculo do MIP)
   const idadeNoInicioAmortizacao = idade + (prazoObra / 12)
 
-  // =========================================================================
-  // NOVA ABORDAGEM: Calcular valor financiado baseado no LTV máximo
-  // e verificar se é viável durante a fase de obra
-  // =========================================================================
-  
-  // Valor financiado inicial: tentar LTV máximo
+  // Estimativa inicial: usar LTV máximo como ponto de partida
   let valorFinanciado = valorFinanciadoMaximoPorLTV
-  
-  // Durante obra, o saldo devedor médio é aproximadamente metade do total
-  // Isso é porque o saldo cresce linearmente de 0 até o valor financiado
-  const saldoMedioObra = valorFinanciado / 2
-  
-  // MIP durante obra é calculado sobre o saldo médio (não o total)
-  // Usar idade ATUAL para MIP de obra (mais jovem = menor MIP)
-  const seguroMIPMedioObra = calcularSeguroMIP(saldoMedioObra, idade)
-  const seguroDFI = calcularSeguroDFI(valorImovel)
-  
-  // Última prestação de obra (a maior) - interesse sobre saldo total
-  const jurosUltimaObra = valorFinanciado * taxaMensal
-  const prestacaoUltimaObra = jurosUltimaObra + seguroMIPMedioObra * 2 + seguroDFI + TAXA_OPERACIONAL_MENSAL
-  
-  // Se a última prestação de obra excede o limite de renda, reduzir valor financiado
-  const prestacaoMaximaObra = rendaMensal * limiteRenda
-  
-  if (prestacaoUltimaObra > prestacaoMaximaObra) {
-    // Reduzir valor financiado proporcionalmente
-    const fatorReducao = prestacaoMaximaObra / prestacaoUltimaObra
-    valorFinanciado = valorFinanciado * fatorReducao
+  let iteracao = 0
+  let diferenca = 1
+
+  // Iteração para convergir no valor financiado
+  // O MIP depende do saldo devedor, então precisamos iterar
+  while (iteracao < 50 && diferenca > 0.01) {
+    // Calcular MIP com idade no início da amortização
+    const seguroMIP = calcularSeguroMIP(valorFinanciado, idadeNoInicioAmortizacao)
+    const seguroDFI = calcularSeguroDFI(valorImovel)
+    
+    // Prestação disponível para amortização + juros
+    const prestacaoBaseMaxima = prestacaoMaxima - seguroMIP - seguroDFI - TAXA_OPERACIONAL_MENSAL
+
+    const novoValorFinanciado = Math.min(
+      valorFinanciadoMaximoPorLTV,
+      prestacaoBaseMaxima > 0
+        ? calcularValorFinanciadoFromPrestacao(prestacaoBaseMaxima, taxaMensal, prazoAmortizacao)
+        : 0
+    )
+    diferenca = Math.abs(novoValorFinanciado - valorFinanciado)
+    valorFinanciado = novoValorFinanciado
+    iteracao++
   }
 
-  // =========================================================================
-  // Agora calcular a prestação de AMORTIZAÇÃO (que pode exceder 25%!)
-  // =========================================================================
-  
-  // Calcular prestação PRICE
+  // Calcular componentes da prestação
   let prestacaoBase = calcularPrestacaoPRICE(valorFinanciado, taxaMensal, prazoAmortizacao)
-  
-  // MIP na amortização: calculado com idade no início da amortização
-  // E sobre o SALDO TOTAL (não médio)
-  const seguroMIPAmortizacao = calcularSeguroMIP(valorFinanciado, idadeNoInicioAmortizacao)
+  const seguroMIP = calcularSeguroMIP(valorFinanciado, idadeNoInicioAmortizacao)
+  const seguroDFI = calcularSeguroDFI(valorImovel)
 
-  // Prestação total de amortização = base + seguros + taxa
-  let prestacaoTotal = prestacaoBase + seguroMIPAmortizacao + seguroDFI + TAXA_OPERACIONAL_MENSAL
+  // Prestação total = base + seguros + taxa operacional
+  let prestacaoTotal = prestacaoBase + seguroMIP + seguroDFI + TAXA_OPERACIONAL_MENSAL
 
   // Ajustar prestação para 1 centavo a menos (prática da Caixa)
   const prestacaoAjustada = ajustarParcela(prestacaoTotal)
 
   // Recalcular prestação base ajustada
-  const prestacaoBaseAjustada = prestacaoAjustada - seguroMIPAmortizacao - seguroDFI - TAXA_OPERACIONAL_MENSAL
+  const prestacaoBaseAjustada = prestacaoAjustada - seguroMIP - seguroDFI - TAXA_OPERACIONAL_MENSAL
 
   // Recalcular valor financiado com a prestação ajustada
   const valorFinanciadoAjustado = calcularValorFinanciadoFromPrestacao(prestacaoBaseAjustada, taxaMensal, prazoAmortizacao)
@@ -361,7 +336,7 @@ function calcularValorFinanciadoPRICE(
     valorFinanciado: valorFinanciadoAjustado,
     prestacao: prestacaoAjustada,
     prestacaoBase: prestacaoBaseAjustada,
-    seguroMIP: seguroMIPAmortizacao,
+    seguroMIP,
     seguroDFI,
     taxaOperacional: TAXA_OPERACIONAL_MENSAL
   }
@@ -381,38 +356,43 @@ function calcularValorFinanciadoSAC(
   const valorFinanciadoMaximoPorLTV = valorImovel * ltvMaximo
 
   // =========================================================================
-  // MESMA METODOLOGIA CAIXA: Valor financiado determinado por LTV e obra
+  // REGRA OFICIAL: O limite de renda (30% para SAC) aplica-se à PRESTAÇÃO
   // =========================================================================
-  
-  // Idade no início da amortização
+
+  // Idade no início da amortização (para cálculo do MIP)
   const idadeNoInicioAmortizacao = idade + (prazoObra / 12)
 
-  // Valor financiado inicial: tentar LTV máximo
+  // Estimativa inicial: usar LTV máximo como ponto de partida
   let valorFinanciado = valorFinanciadoMaximoPorLTV
-  
-  // Durante obra, o saldo devedor médio é aproximadamente metade do total
-  const saldoMedioObra = valorFinanciado / 2
-  
-  // MIP durante obra (sobre saldo médio, com idade atual)
-  const seguroMIPMedioObra = calcularSeguroMIP(saldoMedioObra, idade)
-  const seguroDFI = calcularSeguroDFI(valorImovel)
-  
-  // Última prestação de obra (juros sobre saldo total + seguros)
-  const jurosUltimaObra = valorFinanciado * taxaMensal
-  const prestacaoUltimaObra = jurosUltimaObra + seguroMIPMedioObra * 2 + seguroDFI + TAXA_OPERACIONAL_MENSAL
-  
-  // Se excede limite de renda durante obra, reduzir valor financiado
-  if (prestacaoUltimaObra > prestacaoMaxima) {
-    const fatorReducao = prestacaoMaxima / prestacaoUltimaObra
-    valorFinanciado = valorFinanciado * fatorReducao
+  let iteracao = 0
+  let diferenca = 1
+
+  // Iteração para convergir no valor financiado
+  // O MIP depende do saldo devedor, então precisamos iterar
+  while (iteracao < 50 && diferenca > 0.01) {
+    // Calcular MIP com idade no início da amortização
+    const seguroMIP = calcularSeguroMIP(valorFinanciado, idadeNoInicioAmortizacao)
+    const seguroDFI = calcularSeguroDFI(valorImovel)
+    
+    // Prestação disponível para amortização + juros
+    const prestacaoBaseMaxima = prestacaoMaxima - seguroMIP - seguroDFI - TAXA_OPERACIONAL_MENSAL
+
+    // SAC: primeira prestação = amortização + juros
+    // prestação = VF/n + VF*i = VF * (1/n + i)
+    const novoValorFinanciado = Math.min(
+      valorFinanciadoMaximoPorLTV,
+      prestacaoBaseMaxima > 0 ? prestacaoBaseMaxima / (1 / prazoAmortizacao + taxaMensal) : 0
+    )
+    diferenca = Math.abs(novoValorFinanciado - valorFinanciado)
+    valorFinanciado = novoValorFinanciado
+    iteracao++
   }
 
   // Calcular amortização e juros
   let amortizacaoMensal = valorFinanciado / prazoAmortizacao
   let jurosPrimeira = valorFinanciado * taxaMensal
-  
-  // MIP na amortização: sobre saldo total, com idade no início da amortização
   let seguroMIP = calcularSeguroMIP(valorFinanciado, idadeNoInicioAmortizacao)
+  let seguroDFI = calcularSeguroDFI(valorImovel)
 
   // Prestação inicial = amortização + juros + seguros + taxa operacional
   let prestacaoInicial = amortizacaoMensal + jurosPrimeira + seguroMIP + seguroDFI + TAXA_OPERACIONAL_MENSAL
