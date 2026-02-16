@@ -21,8 +21,8 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
   const [capturePct, setCapturePct] = useState<number>(30)
   const [deliveryDate, setDeliveryDate] = useState<string>('')
   const [downPayment, setDownPayment] = useState<string>('')
-  const [inccRate, setInccRate] = useState<number>(5)
-  const [ipcaRate, setIpcaRate] = useState<number>(4)
+  const [inccRate, setInccRate] = useState<number>(7.44)
+  const [ipcaRate, setIpcaRate] = useState<number>(5.72)
   const [customIntermediaria, setCustomIntermediaria] = useState<string>('')
   const [customMensal, setCustomMensal] = useState<string>('')
   const [sinalWarning, setSinalWarning] = useState<string>('')
@@ -269,21 +269,23 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>INCC (Obra)</Label>
-                  <Select value={inccRate.toString()} onValueChange={(v) => setInccRate(parseInt(v))}>
+                  <Select value={inccRate.toFixed(2)} onValueChange={(v) => setInccRate(parseFloat(v))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="5">5% a.a.</SelectItem>
-                      <SelectItem value="6">6% a.a.</SelectItem>
+                      <SelectItem value="6.17">6,17% a.a.</SelectItem>
+                      <SelectItem value="7.44">7,44% a.a.</SelectItem>
+                      <SelectItem value="8.73">8,73% a.a.</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>IPCA (Pós-Obra)</Label>
-                  <Select value={ipcaRate.toString()} onValueChange={(v) => setIpcaRate(parseInt(v))}>
+                  <Select value={ipcaRate.toFixed(2)} onValueChange={(v) => setIpcaRate(parseFloat(v))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="4">4% a.a.</SelectItem>
-                      <SelectItem value="5">5% a.a.</SelectItem>
+                      <SelectItem value="4.50">4,50% a.a.</SelectItem>
+                      <SelectItem value="5.72">5,72% a.a.</SelectItem>
+                      <SelectItem value="7.50">7,50% a.a.</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
