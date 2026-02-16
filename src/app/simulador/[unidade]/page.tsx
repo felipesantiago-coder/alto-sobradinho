@@ -182,8 +182,8 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
     newSchedule.push({ mes: 'ENTREGA', data: deliveryDisplayDate, tipo: 'Início Financiamento', saldo: financingPrincipal, periodo: 'entrega' })
     
     // Financiamento começa no mês seguinte à entrega
-    const financingStartDate = new Date(deliveryDateObj)
-    financingStartDate.setMonth(financingStartDate.getMonth() + 1)
+    // Usar dia 1 para evitar problemas de overflow quando o mês de entrega tem dia 31
+    const financingStartDate = new Date(deliveryDateObj.getFullYear(), deliveryDateObj.getMonth() + 1, 1)
 
     const n = 120
     const monthlyIpca = Math.pow(1 + (ipcaRate / 100), 1 / 12) - 1
