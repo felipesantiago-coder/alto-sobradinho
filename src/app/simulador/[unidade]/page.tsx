@@ -137,14 +137,15 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
       periodo?: 'obra' | 'entrega' | 'pos-obra'
     }> = []
     let currentBalance = finalValue
-    const currentDate = new Date()
+    const today = new Date()
 
     // Sinal no ato - período obra
-    newSchedule.push({ mes: '0 (Ato)', data: currentDate.toLocaleDateString('pt-BR'), tipo: 'Sinal', pagamento: finalDownPayment, saldo: currentBalance, periodo: 'obra' })
+    newSchedule.push({ mes: '0 (Ato)', data: today.toLocaleDateString('pt-BR'), tipo: 'Sinal', pagamento: finalDownPayment, saldo: currentBalance, periodo: 'obra' })
     currentBalance -= finalDownPayment
-    currentDate.setMonth(currentDate.getMonth() + 1)
 
-    for (let i = 1; i <= getMonthsDifference(new Date(), deliveryDateObj); i++) {
+    // Parcelas mensais durante a obra - sempre no dia 20
+    const monthsToDelivery = getMonthsDifference(new Date(), deliveryDateObj)
+    for (let i = 1; i <= monthsToDelivery; i++) {
       currentBalance += currentBalance * monthlyIncc
       const currentMensalPmt = baseMensalValue * Math.pow(1 + monthlyIncc, i - 1)
       let interPmt = 0
@@ -152,9 +153,12 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
       if (intermediarias.includes(i)) { interPmt = baseInterValue * Math.pow(1 + monthlyIncc, i); tipo = 'Mensal + Intermediária' }
       const totalPmt = currentMensalPmt + interPmt
       currentBalance -= totalPmt
+      
+      // Data no dia 20 do mês correspondente
+      const paymentDate = new Date(today.getFullYear(), today.getMonth() + i, 20)
       newSchedule.push({ 
         mes: i.toString(), 
-        data: currentDate.toLocaleDateString('pt-BR'), 
+        data: paymentDate.toLocaleDateString('pt-BR'), 
         tipo, 
         pagamentoTotal: totalPmt,
         pagamentoMensal: currentMensalPmt,
@@ -162,7 +166,6 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
         saldo: currentBalance, 
         periodo: 'obra' 
       })
-      currentDate.setMonth(currentDate.getMonth() + 1)
     }
 
     const financingPrincipal = currentBalance
@@ -181,23 +184,24 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
     const deliveryDisplayDate = deliveryDateObj.toLocaleDateString('pt-BR')
     newSchedule.push({ mes: 'ENTREGA', data: deliveryDisplayDate, tipo: 'Início Financiamento', saldo: financingPrincipal, periodo: 'entrega' })
     
-    // Financiamento começa no mês seguinte à entrega
-    // Usar dia 1 para evitar problemas de overflow quando o mês de entrega tem dia 31
-    const financingStartDate = new Date(deliveryDateObj.getFullYear(), deliveryDateObj.getMonth() + 1, 1)
+    // Financiamento começa no mês seguinte à entrega - sempre no dia 20
+    const financingStartMonth = deliveryDateObj.getMonth() + 1
+    const financingStartYear = deliveryDateObj.getFullYear()
 
     const n = 120
     const monthlyIpca = Math.pow(1 + (ipcaRate / 100), 1 / 12) - 1
     const iRate = monthlyIpca + 0.01
     const pmt = financingPrincipal * (iRate * Math.pow(1 + iRate, n)) / (Math.pow(1 + iRate, n) - 1)
     let balanceLoop = financingPrincipal
-    let financingDate = new Date(financingStartDate)
 
     for (let x = 1; x <= n; x++) {
       balanceLoop += balanceLoop * iRate
       const payThisMonth = x === n ? balanceLoop : pmt
       balanceLoop -= payThisMonth
-      newSchedule.push({ mes: x.toString(), data: financingDate.toLocaleDateString('pt-BR'), tipo: 'Parcela Financiamento', pagamentoTotal: payThisMonth, saldo: Math.max(0, balanceLoop), periodo: 'pos-obra' })
-      financingDate.setMonth(financingDate.getMonth() + 1)
+      
+      // Data no dia 20 do mês correspondente
+      const paymentDate = new Date(financingStartYear, financingStartMonth + x - 1, 20)
+      newSchedule.push({ mes: x.toString(), data: paymentDate.toLocaleDateString('pt-BR'), tipo: 'Parcela Financiamento', pagamentoTotal: payThisMonth, saldo: Math.max(0, balanceLoop), periodo: 'pos-obra' })
     }
 
     setSchedule(newSchedule)
