@@ -177,22 +177,27 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
       nominalPostDeliveryBalance: Math.max(0, nominalPostDeliveryBalance)
     }))
 
-    // Entrega - marco divisor
-    newSchedule.push({ mes: 'ENTREGA', data: currentDate.toLocaleDateString('pt-BR'), tipo: 'Início Financiamento', saldo: financingPrincipal, periodo: 'entrega' })
-    currentDate.setMonth(currentDate.getMonth() + 1)
+    // Entrega - usar a data real de entrega
+    const deliveryDisplayDate = deliveryDateObj.toLocaleDateString('pt-BR')
+    newSchedule.push({ mes: 'ENTREGA', data: deliveryDisplayDate, tipo: 'Início Financiamento', saldo: financingPrincipal, periodo: 'entrega' })
+    
+    // Financiamento começa no mês seguinte à entrega
+    const financingStartDate = new Date(deliveryDateObj)
+    financingStartDate.setMonth(financingStartDate.getMonth() + 1)
 
     const n = 120
     const monthlyIpca = Math.pow(1 + (ipcaRate / 100), 1 / 12) - 1
     const iRate = monthlyIpca + 0.01
     const pmt = financingPrincipal * (iRate * Math.pow(1 + iRate, n)) / (Math.pow(1 + iRate, n) - 1)
     let balanceLoop = financingPrincipal
+    let financingDate = new Date(financingStartDate)
 
     for (let x = 1; x <= n; x++) {
       balanceLoop += balanceLoop * iRate
       const payThisMonth = x === n ? balanceLoop : pmt
       balanceLoop -= payThisMonth
-      newSchedule.push({ mes: x.toString(), data: currentDate.toLocaleDateString('pt-BR'), tipo: 'Parcela Financiamento', pagamentoTotal: payThisMonth, saldo: Math.max(0, balanceLoop), periodo: 'pos-obra' })
-      currentDate.setMonth(currentDate.getMonth() + 1)
+      newSchedule.push({ mes: x.toString(), data: financingDate.toLocaleDateString('pt-BR'), tipo: 'Parcela Financiamento', pagamentoTotal: payThisMonth, saldo: Math.max(0, balanceLoop), periodo: 'pos-obra' })
+      financingDate.setMonth(financingDate.getMonth() + 1)
     }
 
     setSchedule(newSchedule)
