@@ -32,6 +32,8 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
     tipo: string
     pagamento?: number
     pagamentoTotal?: number
+    pagamentoMensal?: number
+    pagamentoIntermediaria?: number
     saldo: number
     periodo?: 'obra' | 'entrega' | 'pos-obra'
   }>>([])
@@ -129,6 +131,8 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
       tipo: string
       pagamento?: number
       pagamentoTotal?: number
+      pagamentoMensal?: number
+      pagamentoIntermediaria?: number
       saldo: number
       periodo?: 'obra' | 'entrega' | 'pos-obra'
     }> = []
@@ -148,7 +152,16 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
       if (intermediarias.includes(i)) { interPmt = baseInterValue * Math.pow(1 + monthlyIncc, i); tipo = 'Mensal + Intermediária' }
       const totalPmt = currentMensalPmt + interPmt
       currentBalance -= totalPmt
-      newSchedule.push({ mes: i.toString(), data: currentDate.toLocaleDateString('pt-BR'), tipo, pagamentoTotal: totalPmt, saldo: currentBalance, periodo: 'obra' })
+      newSchedule.push({ 
+        mes: i.toString(), 
+        data: currentDate.toLocaleDateString('pt-BR'), 
+        tipo, 
+        pagamentoTotal: totalPmt,
+        pagamentoMensal: currentMensalPmt,
+        pagamentoIntermediaria: interPmt > 0 ? interPmt : undefined,
+        saldo: currentBalance, 
+        periodo: 'obra' 
+      })
       currentDate.setMonth(currentDate.getMonth() + 1)
     }
 
@@ -409,7 +422,9 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
                     <th className="px-4 py-3 text-left font-semibold border-b">Mês</th>
                     <th className="px-4 py-3 text-left font-semibold border-b">Data</th>
                     <th className="px-4 py-3 text-left font-semibold border-b">Tipo</th>
-                    <th className="px-4 py-3 text-left font-semibold border-b">Pagamento</th>
+                    <th className="px-4 py-3 text-left font-semibold border-b">Mensal</th>
+                    <th className="px-4 py-3 text-left font-semibold border-b">Intermediária</th>
+                    <th className="px-4 py-3 text-left font-semibold border-b">Total</th>
                     <th className="px-4 py-3 text-left font-semibold border-b">Saldo</th>
                   </tr>
                 </thead>
@@ -425,6 +440,12 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
                         </span>
                       </td>
                       <td className="px-4 py-3 border-b border-green-200/50 dark:border-green-800/50 font-medium text-green-700 dark:text-green-300">
+                        {row.pagamentoMensal ? formatCurrency(row.pagamentoMensal) : row.pagamento ? formatCurrency(row.pagamento) : '-'}
+                      </td>
+                      <td className="px-4 py-3 border-b border-green-200/50 dark:border-green-800/50 font-medium text-amber-700 dark:text-amber-300">
+                        {row.pagamentoIntermediaria ? formatCurrency(row.pagamentoIntermediaria) : '-'}
+                      </td>
+                      <td className="px-4 py-3 border-b border-green-200/50 dark:border-green-800/50 font-bold text-green-800 dark:text-green-200">
                         {row.pagamentoTotal ? formatCurrency(row.pagamentoTotal) : row.pagamento ? formatCurrency(row.pagamento) : '-'}
                       </td>
                       <td className="px-4 py-3 border-b border-green-200/50 dark:border-green-800/50 font-semibold">{formatCurrency(row.saldo)}</td>
@@ -434,7 +455,7 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
                   {/* Separador - Entrega */}
                   {entregaIndex !== -1 && schedule[entregaIndex] && (
                     <tr key="entrega" className="bg-gradient-to-r from-amber-100 to-amber-200 dark:from-amber-900/50 dark:to-amber-800/50">
-                      <td colSpan={5} className="px-4 py-4 text-center">
+                      <td colSpan={7} className="px-4 py-4 text-center">
                         <div className="flex items-center justify-center gap-3">
                           <div className="h-px bg-amber-400 dark:bg-amber-600 flex-1"></div>
                           <div className="flex items-center gap-2">
@@ -462,6 +483,10 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
                         </span>
                       </td>
                       <td className="px-4 py-3 border-b border-blue-200/50 dark:border-blue-800/50 font-medium text-blue-700 dark:text-blue-300">
+                        {row.pagamentoTotal ? formatCurrency(row.pagamentoTotal) : row.pagamento ? formatCurrency(row.pagamento) : '-'}
+                      </td>
+                      <td className="px-4 py-3 border-b border-blue-200/50 dark:border-blue-800/50">-</td>
+                      <td className="px-4 py-3 border-b border-blue-200/50 dark:border-blue-800/50 font-bold text-blue-800 dark:text-blue-200">
                         {row.pagamentoTotal ? formatCurrency(row.pagamentoTotal) : row.pagamento ? formatCurrency(row.pagamento) : '-'}
                       </td>
                       <td className="px-4 py-3 border-b border-blue-200/50 dark:border-blue-800/50 font-semibold">{formatCurrency(row.saldo)}</td>
