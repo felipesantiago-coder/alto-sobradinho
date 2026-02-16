@@ -410,7 +410,7 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
                 </div>
                 
                 <div className="mt-3 text-xs text-blue-600 dark:text-blue-400">
-                  Este saldo será financiado em 120 parcelas com taxa IPCA + 1% a.a.
+                  Este saldo será financiado em 120 parcelas com taxa IPCA + 1% a.m.
                 </div>
               </div>
             </div>
