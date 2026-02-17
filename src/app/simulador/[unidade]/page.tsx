@@ -6,12 +6,24 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Calculator, AlertCircle, Building2, Wallet, TrendingUp, Clock, Separator } from 'lucide-react'
+import { ArrowLeft, Calculator, AlertCircle, Building2, Wallet, TrendingUp, Clock } from 'lucide-react'
 import Link from 'next/link'
 
 const deliveryDates: Record<string, Date> = {
   'alto-da-alvorada': new Date('2027-03-31'),
   'alto-do-horizonte': new Date('2026-07-31')
+}
+
+// Interface para as linhas da tabela unificada
+interface ScheduleRow {
+  mes: number | string
+  data: string
+  tipo: 'sinal' | 'mensal' | 'pos-obra'
+  mensal?: number
+  intermediaria?: number
+  total: number
+  saldo: number
+  periodo?: 'obra' | 'entrega' | 'pos-obra'
 }
 
 export default function SimuladorPage({ params }: { params: { unidade: string } }) {
@@ -21,20 +33,12 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
   const [capturePct, setCapturePct] = useState<number>(30)
   const [deliveryDate, setDeliveryDate] = useState<string>('')
   const [downPayment, setDownPayment] = useState<string>('')
-  const [inccRate, setInccRate] = useState<number>(5)
-  const [ipcaRate, setIpcaRate] = useState<number>(4)
+  const [inccRate, setInccRate] = useState<number>(7.44)
+  const [ipcaRate, setIpcaRate] = useState<number>(5.72)
   const [customIntermediaria, setCustomIntermediaria] = useState<string>('')
   const [customMensal, setCustomMensal] = useState<string>('')
   const [sinalWarning, setSinalWarning] = useState<string>('')
-  const [schedule, setSchedule] = useState<Array<{
-    mes: string
-    data: string
-    tipo: string
-    pagamento?: number
-    pagamentoTotal?: number
-    saldo: number
-    periodo?: 'obra' | 'entrega' | 'pos-obra'
-  }>>([])
+  const [schedule, setSchedule] = useState<ScheduleRow[]>([])
   const [summaryValues, setSummaryValues] = useState({
     nominalMensalSum: 0, nominalInterSum: 0, correctedMensalSum: 0, correctedInterSum: 0,
     nominalTotalConstruction: 0, correctedTotalConstruction: 0, baseMensalValue: 0, baseInterValue: 0,
@@ -122,41 +126,63 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
     generateTable(baseMensalValue, baseInterValue, monthlyIncc, intermediarias, deliveryDateObj, finalValue, finalDownPayment)
   }
 
+  // Helper para obter data formatada no dia 20 de um mês
+  function getDataDia20(baseDate: Date, mesesAdiantados: number): string {
+    const data = new Date(baseDate.getFullYear(), baseDate.getMonth() + mesesAdiantados, 20)
+    return data.toLocaleDateString('pt-BR')
+  }
+
   function generateTable(baseMensalValue: number, baseInterValue: number, monthlyIncc: number, intermediarias: number[], deliveryDateObj: Date, finalValue: number, finalDownPayment: number) {
-    const newSchedule: Array<{
-      mes: string
-      data: string
-      tipo: string
-      pagamento?: number
-      pagamentoTotal?: number
-      saldo: number
-      periodo?: 'obra' | 'entrega' | 'pos-obra'
-    }> = []
+    const newSchedule: ScheduleRow[] = []
     let currentBalance = finalValue
-    const currentDate = new Date()
+    const today = new Date()
 
-    // Sinal no ato - período obra
-    newSchedule.push({ mes: '0 (Ato)', data: currentDate.toLocaleDateString('pt-BR'), tipo: 'Sinal', pagamento: finalDownPayment, saldo: currentBalance, periodo: 'obra' })
+    // Sinal no ato - período obra (data atual)
+    newSchedule.push({ 
+      mes: 'Ato', 
+      data: today.toLocaleDateString('pt-BR'), 
+      tipo: 'sinal',
+      total: finalDownPayment, 
+      saldo: currentBalance, 
+      periodo: 'obra' 
+    })
     currentBalance -= finalDownPayment
-    currentDate.setMonth(currentDate.getMonth() + 1)
 
-    for (let i = 1; i <= getMonthsDifference(new Date(), deliveryDateObj); i++) {
+    const monthsToDelivery = getMonthsDifference(today, deliveryDateObj)
+
+    // Parcelas mensais durante a obra - sempre dia 20
+    for (let i = 1; i <= monthsToDelivery; i++) {
       currentBalance += currentBalance * monthlyIncc
       const currentMensalPmt = baseMensalValue * Math.pow(1 + monthlyIncc, i - 1)
-      let interPmt = 0
-      let tipo = 'Mensal'
-      if (intermediarias.includes(i)) { interPmt = baseInterValue * Math.pow(1 + monthlyIncc, i); tipo = 'Mensal + Intermediária' }
+      const hasIntermediaria = intermediarias.includes(i)
+      const interPmt = hasIntermediaria ? baseInterValue * Math.pow(1 + monthlyIncc, i) : 0
+      
+      // Primeiro desconta a mensal
+      currentBalance -= currentMensalPmt
+      
+      // Se tem intermediária, desconta também
+      if (hasIntermediaria) {
+        currentBalance -= interPmt
+      }
+      
       const totalPmt = currentMensalPmt + interPmt
-      currentBalance -= totalPmt
-      newSchedule.push({ mes: i.toString(), data: currentDate.toLocaleDateString('pt-BR'), tipo, pagamentoTotal: totalPmt, saldo: currentBalance, periodo: 'obra' })
-      currentDate.setMonth(currentDate.getMonth() + 1)
+      
+      newSchedule.push({ 
+        mes: i, 
+        data: getDataDia20(today, i), 
+        tipo: 'mensal',
+        mensal: currentMensalPmt,
+        intermediaria: hasIntermediaria ? interPmt : undefined,
+        total: totalPmt, 
+        saldo: currentBalance, 
+        periodo: 'obra' 
+      })
     }
 
     const financingPrincipal = currentBalance
     
     // Calcular saldo pós-obra base sem juros (valor nominal)
-    const nominalCaptureTarget = finalValue * (30 / 100) // 30% captação
-    const nominalPostDeliveryBalance = finalValue - finalDownPayment - (baseMensalValue * getMonthsDifference(new Date(), deliveryDateObj)) - (baseInterValue * intermediarias.length)
+    const nominalPostDeliveryBalance = finalValue - finalDownPayment - (baseMensalValue * monthsToDelivery) - (baseInterValue * intermediarias.length)
     
     setSummaryValues(prev => ({ 
       ...prev, 
@@ -164,10 +190,7 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
       nominalPostDeliveryBalance: Math.max(0, nominalPostDeliveryBalance)
     }))
 
-    // Entrega - marco divisor
-    newSchedule.push({ mes: 'ENTREGA', data: currentDate.toLocaleDateString('pt-BR'), tipo: 'Início Financiamento', saldo: financingPrincipal, periodo: 'entrega' })
-    currentDate.setMonth(currentDate.getMonth() + 1)
-
+    // Parcelas pós-obra - iniciar no mês seguinte à entrega, sempre dia 20
     const n = 120
     const monthlyIpca = Math.pow(1 + (ipcaRate / 100), 1 / 12) - 1
     const iRate = monthlyIpca + 0.01
@@ -178,8 +201,15 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
       balanceLoop += balanceLoop * iRate
       const payThisMonth = x === n ? balanceLoop : pmt
       balanceLoop -= payThisMonth
-      newSchedule.push({ mes: x.toString(), data: currentDate.toLocaleDateString('pt-BR'), tipo: 'Parcela Financiamento', pagamentoTotal: payThisMonth, saldo: Math.max(0, balanceLoop), periodo: 'pos-obra' })
-      currentDate.setMonth(currentDate.getMonth() + 1)
+      
+      newSchedule.push({ 
+        mes: x, 
+        data: getDataDia20(deliveryDateObj, x), 
+        tipo: 'pos-obra',
+        total: payThisMonth, 
+        saldo: Math.max(0, balanceLoop), 
+        periodo: 'pos-obra' 
+      })
     }
 
     setSchedule(newSchedule)
@@ -196,9 +226,6 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
   // Calcular captação total durante obra
   const captacaoObraNominal = summaryValues.sinalAto + summaryValues.nominalMensalSum + summaryValues.nominalInterSum
   const captacaoObraCorrigida = summaryValues.sinalAto + summaryValues.correctedMensalSum + summaryValues.correctedInterSum
-  
-  // Encontrar índice da entrega para separação visual
-  const entregaIndex = schedule.findIndex(s => s.periodo === 'entrega')
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900 dark:to-slate-800">
@@ -269,21 +296,23 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>INCC (Obra)</Label>
-                  <Select value={inccRate.toString()} onValueChange={(v) => setInccRate(parseInt(v))}>
+                  <Select value={inccRate.toString()} onValueChange={(v) => setInccRate(parseFloat(v))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="5">5% a.a.</SelectItem>
-                      <SelectItem value="6">6% a.a.</SelectItem>
+                      <SelectItem value="6.17">6,17% a.a.</SelectItem>
+                      <SelectItem value="7.44">7,44% a.a.</SelectItem>
+                      <SelectItem value="8.73">8,73% a.a.</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>IPCA (Pós-Obra)</Label>
-                  <Select value={ipcaRate.toString()} onValueChange={(v) => setIpcaRate(parseInt(v))}>
+                  <Select value={ipcaRate.toString()} onValueChange={(v) => setIpcaRate(parseFloat(v))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="4">4% a.a.</SelectItem>
-                      <SelectItem value="5">5% a.a.</SelectItem>
+                      <SelectItem value="4.5">4,50% a.a.</SelectItem>
+                      <SelectItem value="5.72">5,72% a.a.</SelectItem>
+                      <SelectItem value="7.5">7,50% a.a.</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -292,7 +321,7 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
           </Card>
         </div>
 
-        {/* Seção de Resumo da Operação - ATUALIZADA */}
+        {/* Seção de Resumo da Operação */}
         <Card className="mb-6 dark:bg-background bg-white shadow-md">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -393,7 +422,7 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
           </CardContent>
         </Card>
 
-        {/* Tabela de Pagamentos com Separação Visual */}
+        {/* Tabela de Pagamentos - Layout Intuitivo */}
         <Card className="dark:bg-background bg-white shadow-md">
           <CardHeader>
             <CardTitle className="text-lg">Simulação Mensal</CardTitle>
@@ -402,69 +431,114 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
           <CardContent>
             <div className="overflow-x-auto max-h-96">
               <table className="w-full border-collapse text-sm">
-                <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 z-10">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-semibold border-b">Mês</th>
-                    <th className="px-4 py-3 text-left font-semibold border-b">Data</th>
-                    <th className="px-4 py-3 text-left font-semibold border-b">Tipo</th>
-                    <th className="px-4 py-3 text-left font-semibold border-b">Pagamento</th>
-                    <th className="px-4 py-3 text-left font-semibold border-b">Saldo</th>
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-slate-200 dark:bg-slate-700">
+                    <th className="px-3 py-3 text-left font-semibold border-b-2 border-slate-300 dark:border-slate-600">Mês</th>
+                    <th className="px-3 py-3 text-left font-semibold border-b-2 border-slate-300 dark:border-slate-600">Data</th>
+                    <th className="px-3 py-3 text-right font-semibold border-b-2 border-green-400 dark:border-green-600 bg-green-100/50 dark:bg-green-900/30">Mensal</th>
+                    <th className="px-3 py-3 text-right font-semibold border-b-2 border-amber-400 dark:border-amber-600 bg-amber-100/50 dark:bg-amber-900/30">Intermediária</th>
+                    <th className="px-3 py-3 text-right font-semibold border-b-2 border-slate-400 dark:border-slate-500 bg-slate-100 dark:bg-slate-800">Total</th>
+                    <th className="px-3 py-3 text-right font-semibold border-b-2 border-slate-300 dark:border-slate-600">Saldo</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {/* Período Durante a Obra */}
-                  {schedule.filter(s => s.periodo === 'obra').map((row, index) => (
-                    <tr key={`obra-${index}`} className={`${index % 2 === 0 ? 'bg-green-50/50 dark:bg-green-900/10' : 'bg-green-100/30 dark:bg-green-900/5'} hover:bg-green-100/50 dark:hover:bg-green-900/20 transition-colors`}>
-                      <td className="px-4 py-3 border-b border-green-200/50 dark:border-green-800/50">{row.mes}</td>
-                      <td className="px-4 py-3 border-b border-green-200/50 dark:border-green-800/50">{row.data}</td>
-                      <td className="px-4 py-3 border-b border-green-200/50 dark:border-green-800/50">
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100">
-                          {row.tipo}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 border-b border-green-200/50 dark:border-green-800/50 font-medium text-green-700 dark:text-green-300">
-                        {row.pagamentoTotal ? formatCurrency(row.pagamentoTotal) : row.pagamento ? formatCurrency(row.pagamento) : '-'}
-                      </td>
-                      <td className="px-4 py-3 border-b border-green-200/50 dark:border-green-800/50 font-semibold">{formatCurrency(row.saldo)}</td>
-                    </tr>
-                  ))}
+                  {/* Período Durante a Obra (Sinal + Mensais + Intermediárias) */}
+                  {schedule.filter(s => s.periodo === 'obra').map((row, index) => {
+                    const isSinal = row.tipo === 'sinal'
+                    const hasIntermediaria = row.intermediaria !== undefined
+                    
+                    // Determinar cores da linha
+                    let rowClass = ''
+                    if (isSinal) {
+                      rowClass = 'bg-green-100/70 dark:bg-green-900/20'
+                    } else if (hasIntermediaria) {
+                      rowClass = 'bg-amber-50/70 dark:bg-amber-900/10'
+                    } else {
+                      rowClass = index % 2 === 0 ? 'bg-green-50/30 dark:bg-green-900/5' : 'bg-white dark:bg-slate-800/50'
+                    }
+                    
+                    return (
+                      <tr key={`obra-${index}`} className={`${rowClass} hover:bg-slate-100/50 dark:hover:bg-slate-700/30 transition-colors`}>
+                        <td className="px-3 py-2.5 border-b border-slate-200/50 dark:border-slate-700/50">
+                          <span className={`font-medium ${isSinal ? 'text-green-700 dark:text-green-300' : ''}`}>
+                            {isSinal ? 'Ato' : `${row.mes}º`}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 border-b border-slate-200/50 dark:border-slate-700/50 text-muted-foreground">
+                          {row.data}
+                        </td>
+                        <td className="px-3 py-2.5 border-b border-green-200/30 dark:border-green-800/30 text-right bg-green-50/30 dark:bg-green-900/10">
+                          {row.mensal ? (
+                            <span className="font-medium text-green-700 dark:text-green-300">{formatCurrency(row.mensal)}</span>
+                          ) : isSinal ? (
+                            <span className="text-xs text-muted-foreground italic">sinal</span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 border-b border-amber-200/30 dark:border-amber-800/30 text-right bg-amber-50/30 dark:bg-amber-900/10">
+                          {row.intermediaria ? (
+                            <span className="font-medium text-amber-700 dark:text-amber-300">{formatCurrency(row.intermediaria)}</span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 border-b border-slate-200/50 dark:border-slate-700/50 text-right font-semibold">
+                          <span className={isSinal ? 'text-green-700 dark:text-green-300' : ''}>
+                            {formatCurrency(row.total)}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 border-b border-slate-200/50 dark:border-slate-700/50 text-right font-semibold text-slate-700 dark:text-slate-300">
+                          {formatCurrency(row.saldo)}
+                        </td>
+                      </tr>
+                    )
+                  })}
                   
-                  {/* Separador - Entrega */}
-                  {entregaIndex !== -1 && schedule[entregaIndex] && (
-                    <tr key="entrega" className="bg-gradient-to-r from-amber-100 to-amber-200 dark:from-amber-900/50 dark:to-amber-800/50">
-                      <td colSpan={5} className="px-4 py-4 text-center">
-                        <div className="flex items-center justify-center gap-3">
-                          <div className="h-px bg-amber-400 dark:bg-amber-600 flex-1"></div>
-                          <div className="flex items-center gap-2">
-                            <Building2 className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                            <span className="font-bold text-amber-800 dark:text-amber-200">ENTREGA DO EMPREENDIMENTO</span>
-                            <span className="text-amber-700 dark:text-amber-300">- Início do Financiamento</span>
-                          </div>
-                          <div className="h-px bg-amber-400 dark:bg-amber-600 flex-1"></div>
+                  {/* Linha de Entrega - Separador */}
+                  <tr className="bg-gradient-to-r from-amber-100 to-amber-200 dark:from-amber-900/50 dark:to-amber-800/50">
+                    <td colSpan={6} className="px-3 py-3 text-center">
+                      <div className="flex items-center justify-center gap-3">
+                        <div className="h-px bg-amber-400 dark:bg-amber-600 flex-1"></div>
+                        <div className="flex items-center gap-2">
+                          <Building2 className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                          <span className="font-bold text-amber-800 dark:text-amber-200 text-sm">ENTREGA DO EMPREENDIMENTO</span>
                         </div>
-                        <div className="mt-2 text-amber-700 dark:text-amber-300 font-semibold">
-                          Saldo a financiar: {formatCurrency(schedule[entregaIndex].saldo)}
-                        </div>
-                      </td>
-                    </tr>
-                  )}
+                        <div className="h-px bg-amber-400 dark:bg-amber-600 flex-1"></div>
+                      </div>
+                      <div className="text-xs text-amber-700 dark:text-amber-300 font-semibold mt-1">
+                        Saldo a financiar: {formatCurrency(summaryValues.correctedPostDeliveryBalance)}
+                      </div>
+                    </td>
+                  </tr>
                   
-                  {/* Período Pós-Obra */}
-                  {schedule.filter(s => s.periodo === 'pos-obra').map((row, index) => (
-                    <tr key={`pos-obra-${index}`} className={`${index % 2 === 0 ? 'bg-blue-50/50 dark:bg-blue-900/10' : 'bg-blue-100/30 dark:bg-blue-900/5'} hover:bg-blue-100/50 dark:hover:bg-blue-900/20 transition-colors`}>
-                      <td className="px-4 py-3 border-b border-blue-200/50 dark:border-blue-800/50">{row.mes}</td>
-                      <td className="px-4 py-3 border-b border-blue-200/50 dark:border-blue-800/50">{row.data}</td>
-                      <td className="px-4 py-3 border-b border-blue-200/50 dark:border-blue-800/50">
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100">
-                          {row.tipo}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 border-b border-blue-200/50 dark:border-blue-800/50 font-medium text-blue-700 dark:text-blue-300">
-                        {row.pagamentoTotal ? formatCurrency(row.pagamentoTotal) : row.pagamento ? formatCurrency(row.pagamento) : '-'}
-                      </td>
-                      <td className="px-4 py-3 border-b border-blue-200/50 dark:border-blue-800/50 font-semibold">{formatCurrency(row.saldo)}</td>
-                    </tr>
-                  ))}
+                  {/* Período Pós-Obra (Financiamento) */}
+                  {schedule.filter(s => s.periodo === 'pos-obra').map((row, index) => {
+                    const rowClass = index % 2 === 0 ? 'bg-blue-50/50 dark:bg-blue-900/10' : 'bg-blue-100/30 dark:bg-blue-900/5'
+                    
+                    return (
+                      <tr key={`pos-obra-${index}`} className={`${rowClass} hover:bg-blue-100/50 dark:hover:bg-blue-900/20 transition-colors`}>
+                        <td className="px-3 py-2.5 border-b border-blue-200/50 dark:border-blue-800/50">
+                          <span className="font-medium text-blue-700 dark:text-blue-300">{row.mes}º</span>
+                        </td>
+                        <td className="px-3 py-2.5 border-b border-blue-200/50 dark:border-blue-800/50 text-muted-foreground">
+                          {row.data}
+                        </td>
+                        <td className="px-3 py-2.5 border-b border-blue-200/50 dark:border-blue-800/50 text-right">
+                          <span className="text-muted-foreground">-</span>
+                        </td>
+                        <td className="px-3 py-2.5 border-b border-blue-200/50 dark:border-blue-800/50 text-right">
+                          <span className="text-muted-foreground">-</span>
+                        </td>
+                        <td className="px-3 py-2.5 border-b border-blue-200/50 dark:border-blue-800/50 text-right font-semibold">
+                          <span className="text-blue-700 dark:text-blue-300">{formatCurrency(row.total)}</span>
+                        </td>
+                        <td className="px-3 py-2.5 border-b border-blue-200/50 dark:border-blue-800/50 text-right font-semibold text-slate-700 dark:text-slate-300">
+                          {formatCurrency(row.saldo)}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -474,11 +548,15 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
               <div className="flex flex-wrap gap-4 justify-center">
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 bg-green-100 dark:bg-green-900/50 rounded border border-green-300 dark:border-green-700"></div>
-                  <span className="text-sm text-muted-foreground">Período Durante a Obra</span>
+                  <span className="text-sm text-muted-foreground">Mensal</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-amber-100 dark:bg-amber-900/50 rounded border border-amber-300 dark:border-amber-700"></div>
+                  <span className="text-sm text-muted-foreground">Intermediária</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 bg-blue-100 dark:bg-blue-900/50 rounded border border-blue-300 dark:border-blue-700"></div>
-                  <span className="text-sm text-muted-foreground">Período Pós-Obra (Financiamento)</span>
+                  <span className="text-sm text-muted-foreground">Pós-Obra (Financiamento)</span>
                 </div>
               </div>
             </div>
