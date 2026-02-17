@@ -21,8 +21,8 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
   const [capturePct, setCapturePct] = useState<number>(30)
   const [deliveryDate, setDeliveryDate] = useState<string>('')
   const [downPayment, setDownPayment] = useState<string>('')
-  const [inccRate, setInccRate] = useState<number>(7.44)
-  const [ipcaRate, setIpcaRate] = useState<number>(5.72)
+  const [inccRate, setInccRate] = useState<number>(5)
+  const [ipcaRate, setIpcaRate] = useState<number>(4)
   const [customIntermediaria, setCustomIntermediaria] = useState<string>('')
   const [customMensal, setCustomMensal] = useState<string>('')
   const [sinalWarning, setSinalWarning] = useState<string>('')
@@ -32,8 +32,6 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
     tipo: string
     pagamento?: number
     pagamentoTotal?: number
-    pagamentoMensal?: number
-    pagamentoIntermediaria?: number
     saldo: number
     periodo?: 'obra' | 'entrega' | 'pos-obra'
   }>>([])
@@ -131,21 +129,18 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
       tipo: string
       pagamento?: number
       pagamentoTotal?: number
-      pagamentoMensal?: number
-      pagamentoIntermediaria?: number
       saldo: number
       periodo?: 'obra' | 'entrega' | 'pos-obra'
     }> = []
     let currentBalance = finalValue
-    const today = new Date()
+    const currentDate = new Date()
 
     // Sinal no ato - período obra
-    newSchedule.push({ mes: '0 (Ato)', data: today.toLocaleDateString('pt-BR'), tipo: 'Sinal', pagamento: finalDownPayment, saldo: currentBalance, periodo: 'obra' })
+    newSchedule.push({ mes: '0 (Ato)', data: currentDate.toLocaleDateString('pt-BR'), tipo: 'Sinal', pagamento: finalDownPayment, saldo: currentBalance, periodo: 'obra' })
     currentBalance -= finalDownPayment
+    currentDate.setMonth(currentDate.getMonth() + 1)
 
-    // Parcelas mensais durante a obra - sempre no dia 20
-    const monthsToDelivery = getMonthsDifference(new Date(), deliveryDateObj)
-    for (let i = 1; i <= monthsToDelivery; i++) {
+    for (let i = 1; i <= getMonthsDifference(new Date(), deliveryDateObj); i++) {
       currentBalance += currentBalance * monthlyIncc
       const currentMensalPmt = baseMensalValue * Math.pow(1 + monthlyIncc, i - 1)
       let interPmt = 0
@@ -153,19 +148,8 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
       if (intermediarias.includes(i)) { interPmt = baseInterValue * Math.pow(1 + monthlyIncc, i); tipo = 'Mensal + Intermediária' }
       const totalPmt = currentMensalPmt + interPmt
       currentBalance -= totalPmt
-      
-      // Data no dia 20 do mês correspondente
-      const paymentDate = new Date(today.getFullYear(), today.getMonth() + i, 20)
-      newSchedule.push({ 
-        mes: i.toString(), 
-        data: paymentDate.toLocaleDateString('pt-BR'), 
-        tipo, 
-        pagamentoTotal: totalPmt,
-        pagamentoMensal: currentMensalPmt,
-        pagamentoIntermediaria: interPmt > 0 ? interPmt : undefined,
-        saldo: currentBalance, 
-        periodo: 'obra' 
-      })
+      newSchedule.push({ mes: i.toString(), data: currentDate.toLocaleDateString('pt-BR'), tipo, pagamentoTotal: totalPmt, saldo: currentBalance, periodo: 'obra' })
+      currentDate.setMonth(currentDate.getMonth() + 1)
     }
 
     const financingPrincipal = currentBalance
@@ -180,13 +164,9 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
       nominalPostDeliveryBalance: Math.max(0, nominalPostDeliveryBalance)
     }))
 
-    // Entrega - usar a data real de entrega
-    const deliveryDisplayDate = deliveryDateObj.toLocaleDateString('pt-BR')
-    newSchedule.push({ mes: 'ENTREGA', data: deliveryDisplayDate, tipo: 'Início Financiamento', saldo: financingPrincipal, periodo: 'entrega' })
-    
-    // Financiamento começa no mês seguinte à entrega - sempre no dia 20
-    const financingStartMonth = deliveryDateObj.getMonth() + 1
-    const financingStartYear = deliveryDateObj.getFullYear()
+    // Entrega - marco divisor
+    newSchedule.push({ mes: 'ENTREGA', data: currentDate.toLocaleDateString('pt-BR'), tipo: 'Início Financiamento', saldo: financingPrincipal, periodo: 'entrega' })
+    currentDate.setMonth(currentDate.getMonth() + 1)
 
     const n = 120
     const monthlyIpca = Math.pow(1 + (ipcaRate / 100), 1 / 12) - 1
@@ -198,10 +178,8 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
       balanceLoop += balanceLoop * iRate
       const payThisMonth = x === n ? balanceLoop : pmt
       balanceLoop -= payThisMonth
-      
-      // Data no dia 20 do mês correspondente
-      const paymentDate = new Date(financingStartYear, financingStartMonth + x - 1, 20)
-      newSchedule.push({ mes: x.toString(), data: paymentDate.toLocaleDateString('pt-BR'), tipo: 'Parcela Financiamento', pagamentoTotal: payThisMonth, saldo: Math.max(0, balanceLoop), periodo: 'pos-obra' })
+      newSchedule.push({ mes: x.toString(), data: currentDate.toLocaleDateString('pt-BR'), tipo: 'Parcela Financiamento', pagamentoTotal: payThisMonth, saldo: Math.max(0, balanceLoop), periodo: 'pos-obra' })
+      currentDate.setMonth(currentDate.getMonth() + 1)
     }
 
     setSchedule(newSchedule)
@@ -291,23 +269,21 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>INCC (Obra)</Label>
-                  <Select value={inccRate.toFixed(2)} onValueChange={(v) => setInccRate(parseFloat(v))}>
+                  <Select value={inccRate.toString()} onValueChange={(v) => setInccRate(parseInt(v))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="6.17">6,17% a.a.</SelectItem>
-                      <SelectItem value="7.44">7,44% a.a.</SelectItem>
-                      <SelectItem value="8.73">8,73% a.a.</SelectItem>
+                      <SelectItem value="5">5% a.a.</SelectItem>
+                      <SelectItem value="6">6% a.a.</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>IPCA (Pós-Obra)</Label>
-                  <Select value={ipcaRate.toFixed(2)} onValueChange={(v) => setIpcaRate(parseFloat(v))}>
+                  <Select value={ipcaRate.toString()} onValueChange={(v) => setIpcaRate(parseInt(v))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="4.50">4,50% a.a.</SelectItem>
-                      <SelectItem value="5.72">5,72% a.a.</SelectItem>
-                      <SelectItem value="7.50">7,50% a.a.</SelectItem>
+                      <SelectItem value="4">4% a.a.</SelectItem>
+                      <SelectItem value="5">5% a.a.</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -410,7 +386,7 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
                 </div>
                 
                 <div className="mt-3 text-xs text-blue-600 dark:text-blue-400">
-                  Este saldo será financiado em 120 parcelas com taxa IPCA + 1% a.m.
+                  Este saldo será financiado em 120 parcelas com taxa IPCA + 1% a.a.
                 </div>
               </div>
             </div>
@@ -431,9 +407,7 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
                     <th className="px-4 py-3 text-left font-semibold border-b">Mês</th>
                     <th className="px-4 py-3 text-left font-semibold border-b">Data</th>
                     <th className="px-4 py-3 text-left font-semibold border-b">Tipo</th>
-                    <th className="px-4 py-3 text-left font-semibold border-b">Mensal</th>
-                    <th className="px-4 py-3 text-left font-semibold border-b">Intermediária</th>
-                    <th className="px-4 py-3 text-left font-semibold border-b">Total</th>
+                    <th className="px-4 py-3 text-left font-semibold border-b">Pagamento</th>
                     <th className="px-4 py-3 text-left font-semibold border-b">Saldo</th>
                   </tr>
                 </thead>
@@ -449,12 +423,6 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
                         </span>
                       </td>
                       <td className="px-4 py-3 border-b border-green-200/50 dark:border-green-800/50 font-medium text-green-700 dark:text-green-300">
-                        {row.pagamentoMensal ? formatCurrency(row.pagamentoMensal) : row.pagamento ? formatCurrency(row.pagamento) : '-'}
-                      </td>
-                      <td className="px-4 py-3 border-b border-green-200/50 dark:border-green-800/50 font-medium text-amber-700 dark:text-amber-300">
-                        {row.pagamentoIntermediaria ? formatCurrency(row.pagamentoIntermediaria) : '-'}
-                      </td>
-                      <td className="px-4 py-3 border-b border-green-200/50 dark:border-green-800/50 font-bold text-green-800 dark:text-green-200">
                         {row.pagamentoTotal ? formatCurrency(row.pagamentoTotal) : row.pagamento ? formatCurrency(row.pagamento) : '-'}
                       </td>
                       <td className="px-4 py-3 border-b border-green-200/50 dark:border-green-800/50 font-semibold">{formatCurrency(row.saldo)}</td>
@@ -464,7 +432,7 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
                   {/* Separador - Entrega */}
                   {entregaIndex !== -1 && schedule[entregaIndex] && (
                     <tr key="entrega" className="bg-gradient-to-r from-amber-100 to-amber-200 dark:from-amber-900/50 dark:to-amber-800/50">
-                      <td colSpan={7} className="px-4 py-4 text-center">
+                      <td colSpan={5} className="px-4 py-4 text-center">
                         <div className="flex items-center justify-center gap-3">
                           <div className="h-px bg-amber-400 dark:bg-amber-600 flex-1"></div>
                           <div className="flex items-center gap-2">
@@ -492,10 +460,6 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
                         </span>
                       </td>
                       <td className="px-4 py-3 border-b border-blue-200/50 dark:border-blue-800/50 font-medium text-blue-700 dark:text-blue-300">
-                        {row.pagamentoTotal ? formatCurrency(row.pagamentoTotal) : row.pagamento ? formatCurrency(row.pagamento) : '-'}
-                      </td>
-                      <td className="px-4 py-3 border-b border-blue-200/50 dark:border-blue-800/50">-</td>
-                      <td className="px-4 py-3 border-b border-blue-200/50 dark:border-blue-800/50 font-bold text-blue-800 dark:text-blue-200">
                         {row.pagamentoTotal ? formatCurrency(row.pagamentoTotal) : row.pagamento ? formatCurrency(row.pagamento) : '-'}
                       </td>
                       <td className="px-4 py-3 border-b border-blue-200/50 dark:border-blue-800/50 font-semibold">{formatCurrency(row.saldo)}</td>

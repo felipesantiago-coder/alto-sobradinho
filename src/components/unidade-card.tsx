@@ -85,7 +85,7 @@ export function UnidadeCard({
 
   const handleCaixaClick = () => {
     if (isAvailable) {
-      const parseValorAvaliacao = (valor: string): string => {
+      const parseValor = (valor: string): string => {
         const limpo = valor.replace(/[R$\s]/g, '')
         if (limpo.includes('.') && limpo.includes(',')) {
           return (parseFloat(limpo.replace(/\./g, '').replace(',', '.'))).toFixed(2)
@@ -99,13 +99,20 @@ export function UnidadeCard({
         return parseFloat(limpo).toFixed(2)
       }
 
-      const valorAvaliacaoNum = parseValorAvaliacao(valorAvaliacao)
+      const valorAvaliacaoNum = parseValor(valorAvaliacao)
+      const valorVendaNum = parseValor(valorVenda)
+      const avaliacao = parseFloat(valorAvaliacaoNum)
+      const venda = parseFloat(valorVendaNum)
+      const bonus = avaliacao > venda ? (avaliacao - venda).toFixed(2) : '0'
 
       const params = new URLSearchParams({
-        valorImovel: valorAvaliacaoNum,
+        valorAvaliacao: valorAvaliacaoNum,
+        valorVenda: valorVendaNum,
+        bonusConstrutora: bonus,
         unidade: unidade,
         tipologia: tipologia,
-        area: areaPrivativa
+        area: areaPrivativa,
+        empreendimento: empreendimentoSlug || ''
       })
 
       router.push(`/simulador-caixa?${params.toString()}`)
