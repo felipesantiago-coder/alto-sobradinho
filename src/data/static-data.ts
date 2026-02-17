@@ -167,7 +167,7 @@ export const ALTO_DA_ALVORADA: Unidade[] = [
   { id: 153, unidade: "B-802", andar: 8, areaPrivativa: "72,83 m²", tipologia: "3Q", posicaoSol: "Poente", vaga: 2, valorAvaliacao: "R$ 714.000", valorVenda: "R$ 678997.60", disponibilidade: "Disponível" },
   { id: 154, unidade: "B-803", andar: 8, areaPrivativa: "59,86 m²", tipologia: "2Q", posicaoSol: "Nascente", vaga: 1, valorAvaliacao: "R$ 598.000", valorVenda: "R$ 577337.16", disponibilidade: "Disponível" },
   { id: 155, unidade: "B-804", andar: 8, areaPrivativa: "59,86 m²", tipologia: "2Q", posicaoSol: "Poente", vaga: 1, valorAvaliacao: "R$ 598.000", valorVenda: "R$ 538240.40", disponibilidade: "Disponível" },
-  { id: 156, unidade: "B-805", andar: 8, areaPrivativa: "59,86 m²", tipologia: "2Q", posicaoSol: "Nascente", vaga: 1, valorAvaliacao: "R$ 598.000", valorVenda: "R$ 577337.16", disponibilidade: "Disponível" },
+  { id: 156, unidade: "B-805", andar: 8, areaPrivativa: "59,86 m²", tipologia: "2Q", posicaoSol: "Nascente", vaga: 1, valorAvaliacao: "R$ 598.000", valorVenda: "R$ 577337.16", disponibilidade: "Reservada aguardando revisão de proposta" },
   { id: 157, unidade: "B-806", andar: 8, areaPrivativa: "59,86 m²", tipologia: "2Q", posicaoSol: "Poente", vaga: 1, valorAvaliacao: "R$ 598.000", valorVenda: "R$ 538240.40", disponibilidade: "Disponível" },
   { id: 158, unidade: "B-807", andar: 8, areaPrivativa: "72,83 m²", tipologia: "3Q", posicaoSol: "Nascente", vaga: 2, valorAvaliacao: "R$ 714.000", valorVenda: "R$ 723085.77", disponibilidade: "Disponível" },
   { id: 159, unidade: "B-808", andar: 8, areaPrivativa: "72,83 m²", tipologia: "3Q", posicaoSol: "Poente", vaga: 2, valorAvaliacao: "R$ 714.000", valorVenda: "R$ 678997.60", disponibilidade: "Disponível" },
