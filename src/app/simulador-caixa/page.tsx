@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -23,7 +23,8 @@ import {
   User,
   TrendingUp,
   Building2,
-  ArrowLeft
+  ArrowLeft,
+  FileText
 } from 'lucide-react'
 
 interface SimulacaoResult {
@@ -58,14 +59,20 @@ interface SimulacaoResult {
 
 function SimuladorCaixaContent() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const [isClient, setIsClient] = useState(false)
 
-  const valorImovelParam = searchParams.get('valorImovel') || ''
+  // Parâmetros recebidos - valorAvaliacao é usado para simulação
+  const valorAvaliacaoParam = searchParams.get('valorAvaliacao') || searchParams.get('valorImovel') || ''
+  const valorVendaParam = searchParams.get('valorVenda') || valorAvaliacaoParam
+  const bonusConstrutoraParam = searchParams.get('bonusConstrutora') || '0'
   const unidadeParam = searchParams.get('unidade') || ''
   const tipologiaParam = searchParams.get('tipologia') || ''
   const areaParam = searchParams.get('area') || ''
+  const empreendimentoParam = searchParams.get('empreendimento') || ''
 
-  const [valorImovel, setValorImovel] = useState(valorImovelParam || '')
+  // Valor do imóvel para simulação = valor de avaliação
+  const [valorImovel, setValorImovel] = useState(valorAvaliacaoParam || '')
   const [renda, setRenda] = useState('')
   const [dataNascimento, setDataNascimento] = useState('')
   const [sistemaAmortizacao, setSistemaAmortizacao] = useState('PRICE TR')
@@ -89,6 +96,36 @@ function SimuladorCaixaContent() {
       return parseFloat(limpo.replace(',', '.'))
     }
     return parseFloat(limpo)
+  }
+
+  const criarCotacao = () => {
+    if (!resultados) return
+
+    // Extrair valores numéricos dos resultados formatados
+    const parseCurrencyString = (str: string): number => {
+      const limpo = str.replace(/[R$\s.]/g, '').replace(',', '.')
+      return parseFloat(limpo) || 0
+    }
+
+    const params = new URLSearchParams({
+      unidade: unidadeParam,
+      tipologia: tipologiaParam,
+      area: areaParam,
+      empreendimento: empreendimentoParam,
+      valorVenda: valorVendaParam,
+      valorAvaliacao: valorAvaliacaoParam,
+      bonusConstrutora: bonusConstrutoraParam,
+      valorFinanciado: parseCurrencyString(resultados.dados.Valor_Total_Financiado).toString(),
+      sistemaAmortizacao: resultados.dados.Sistema_Amortizacao,
+      prazoAmortizacao: resultados.dados.Prazo_Amortizacao_Meses.toString(),
+      primeiraPrestacao: resultados.dados.Primeira_Prestacao,
+      ultimaPrestacao: resultados.dados.Ultima_Prestacao,
+      percentualEntrada: resultados.dados.Percentual_Entrada,
+      renda: renda,
+      dataNascimento: dataNascimento
+    })
+
+    router.push(`/cotacao?${params.toString()}`)
   }
 
   const simularFinanciamento = async () => {
@@ -185,10 +222,10 @@ function SimuladorCaixaContent() {
                         <p className="font-semibold text-sm sm:text-base">{areaParam}</p>
                       </div>
                     )}
-                    {valorImovelParam && (
+                    {valorAvaliacaoParam && (
                       <div>
-                        <Label className="text-xs sm:text-sm text-muted-foreground">Valor</Label>
-                        <p className="font-semibold text-sm sm:text-base text-blue-600">{formatCurrency(parseValorMonetario(valorImovelParam))}</p>
+                        <Label className="text-xs sm:text-sm text-muted-foreground">Valor Avaliação</Label>
+                        <p className="font-semibold text-sm sm:text-base text-blue-600">{formatCurrency(parseValorMonetario(valorAvaliacaoParam))}</p>
                       </div>
                     )}
                   </div>
@@ -207,7 +244,7 @@ function SimuladorCaixaContent() {
               <CardContent>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="valorImovel">Valor do Imóvel *</Label>
+                    <Label htmlFor="valorImovel">Valor de Avaliação *</Label>
                     <div className="relative">
                       <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                       <Input
@@ -219,6 +256,7 @@ function SimuladorCaixaContent() {
                         className="pl-10"
                       />
                     </div>
+                    <p className="text-xs text-muted-foreground">Valor usado para cálculo do financiamento (LTV)</p>
                   </div>
                 </div>
               </CardContent>
@@ -473,12 +511,20 @@ function SimuladorCaixaContent() {
                   </div>
 
                   {/* Ações */}
-                  <div className="flex gap-3 pt-2">
+                  <div className="space-y-3 pt-2">
+                    <Button
+                      onClick={criarCotacao}
+                      className="w-full gap-2 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 shadow-lg shadow-emerald-500/25"
+                      size="lg"
+                    >
+                      <FileText className="w-5 h-5" />
+                      Criar Cotação
+                    </Button>
                     <Button
                       onClick={simularFinanciamento}
                       disabled={loading}
                       variant="outline"
-                      className="flex-1"
+                      className="w-full"
                     >
                       Nova Simulação
                     </Button>
