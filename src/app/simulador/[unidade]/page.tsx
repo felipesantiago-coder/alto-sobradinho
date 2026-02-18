@@ -312,7 +312,7 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
                     <SelectContent>
                       <SelectItem value="4.5">4,50% a.a.</SelectItem>
                       <SelectItem value="5.72">5,72% a.a.</SelectItem>
-                      <SelectItem value="7.5">7,50% a.a.</SelectItem>
+                      <SelectItem value="7.5">7,50% </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -415,7 +415,7 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
                 </div>
                 
                 <div className="mt-3 text-xs text-blue-600 dark:text-blue-400">
-                  Este saldo será financiado em 120 parcelas com taxa IPCA + 1% a.a.
+                  Este saldo será financiado em 120 parcelas com taxa IPCA + 1% a.m.
                 </div>
               </div>
             </div>
