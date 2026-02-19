@@ -994,18 +994,16 @@ function CotacaoContent() {
 
                   {/* Seção de Resultados - Indicadores Financeiros */}
                   {proSolutoDetalhes && parcelasProSoluto > 0 && renda && (
-                    <div className="bg-gradient-to-br from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-700 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-600 p-3 sm:p-4 space-y-3 sm:space-y-4">
-                      <div className="flex flex-col xs:flex-row xs:items-center gap-1 xs:gap-2">
-                        <h4 className="font-semibold text-xs sm:text-sm flex items-center gap-2 text-slate-700 dark:text-slate-200">
-                          <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4 text-primary" />
-                          Indicadores Financeiros
-                        </h4>
-                        <span className="text-xs text-muted-foreground xs:ml-auto">
+                    <div className="bg-gradient-to-br from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-700 rounded-xl border border-slate-200 dark:border-slate-600 p-4 space-y-4">
+                      <h4 className="font-semibold text-sm flex items-center gap-2 text-slate-700 dark:text-slate-200">
+                        <TrendingUp className="w-4 h-4 text-primary" />
+                        Indicadores Financeiros
+                        <span className="ml-auto text-xs text-muted-foreground font-normal">
                           Limites perfil {PERFIS[perfilSelecionado].nome}
                         </span>
-                      </div>
+                      </h4>
 
-                      <div className="grid grid-cols-1 xs:grid-cols-3 gap-2 sm:gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         {/* Comprometimento de Renda */}
                         {(() => {
                           const rendaNum = parseBrazilianCurrency(renda)
@@ -1017,19 +1015,19 @@ function CotacaoContent() {
                           const excedido = percentual > limite
                           
                           return (
-                            <div className={`rounded-lg p-2.5 sm:p-3 border ${
+                            <div className={`rounded-lg p-3 border ${
                               excedido 
                                 ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700' 
                                 : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600'
                             }`}>
                               <div className="flex items-center justify-between mb-1">
-                                <span className="text-xs text-muted-foreground truncate">Comprometimento de Renda</span>
-                                {excedido && <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 text-red-500 flex-shrink-0" />}
+                                <span className="text-xs text-muted-foreground">Comprometimento de Renda</span>
+                                {excedido && <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />}
                               </div>
-                              <div className={`text-lg sm:text-xl font-bold ${excedido ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`}>
+                              <div className={`text-xl font-bold ${excedido ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`}>
                                 {percentual.toFixed(2)}%
                               </div>
-                              <div className={`text-xs mt-1 truncate ${excedido ? 'text-red-600 dark:text-red-400 font-medium' : 'text-muted-foreground'}`}>
+                              <div className={`text-xs mt-1 ${excedido ? 'text-red-600 dark:text-red-400 font-medium' : 'text-muted-foreground'}`}>
                                 {excedido ? `Limite: ${limite.toFixed(2)}%` : 'Financiamento + Pró-Soluto'}
                               </div>
                             </div>
@@ -1043,20 +1041,20 @@ function CotacaoContent() {
                           const excedido = percentual > limite
                           
                           return (
-                            <div className={`rounded-lg p-2.5 sm:p-3 border ${
+                            <div className={`rounded-lg p-3 border ${
                               excedido 
                                 ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700' 
                                 : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600'
                             }`}>
                               <div className="flex items-center justify-between mb-1">
-                                <span className="text-xs text-muted-foreground truncate">Percentual Parcelado</span>
-                                {excedido && <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 text-red-500 flex-shrink-0" />}
+                                <span className="text-xs text-muted-foreground">Percentual Parcelado</span>
+                                {excedido && <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />}
                               </div>
-                              <div className={`text-lg sm:text-xl font-bold ${excedido ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                              <div className={`text-xl font-bold ${excedido ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
                                 {percentual.toFixed(2)}%
                               </div>
-                              <div className={`text-xs mt-1 truncate ${excedido ? 'text-red-600 dark:text-red-400 font-medium' : 'text-muted-foreground'}`}>
-                                {excedido ? `Limite: ${limite.toFixed(2)}%` : 'do valor (corrigido)'}
+                              <div className={`text-xs mt-1 ${excedido ? 'text-red-600 dark:text-red-400 font-medium' : 'text-muted-foreground'}`}>
+                                {excedido ? `Limite: ${limite.toFixed(2)}%` : 'do valor do imóvel (corrigido)'}
                               </div>
                             </div>
                           )
@@ -1071,19 +1069,19 @@ function CotacaoContent() {
                           const excedido = percentual > limite
                           
                           return (
-                            <div className={`rounded-lg p-2.5 sm:p-3 border ${
+                            <div className={`rounded-lg p-3 border ${
                               excedido 
                                 ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700' 
                                 : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600'
                             }`}>
                               <div className="flex items-center justify-between mb-1">
-                                <span className="text-xs text-muted-foreground truncate">Comprometimento Pró-Soluto</span>
-                                {excedido && <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 text-red-500 flex-shrink-0" />}
+                                <span className="text-xs text-muted-foreground">Comprometimento Pró-Soluto</span>
+                                {excedido && <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />}
                               </div>
-                              <div className={`text-lg sm:text-xl font-bold ${excedido ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                              <div className={`text-xl font-bold ${excedido ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`}>
                                 {percentual.toFixed(2)}%
                               </div>
-                              <div className={`text-xs mt-1 truncate ${excedido ? 'text-red-600 dark:text-red-400 font-medium' : 'text-muted-foreground'}`}>
+                              <div className={`text-xs mt-1 ${excedido ? 'text-red-600 dark:text-red-400 font-medium' : 'text-muted-foreground'}`}>
                                 {excedido ? `Limite: ${limite.toFixed(2)}%` : 'da renda mensal'}
                               </div>
                             </div>
@@ -1108,13 +1106,13 @@ function CotacaoContent() {
                                               comprometimentoProSoluto > limites.comprometimentoProSoluto
                         
                         return algumExcedido ? (
-                          <div className="bg-red-100 dark:bg-red-900/30 rounded-lg p-2.5 sm:p-3 border border-red-300 dark:border-red-700">
+                          <div className="bg-red-100 dark:bg-red-900/30 rounded-lg p-3 border border-red-300 dark:border-red-700">
                             <div className="flex items-start gap-2">
-                              <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 text-red-600 mt-0.5 flex-shrink-0" />
+                              <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
                               <div className="text-xs text-red-700 dark:text-red-300">
                                 <span className="font-semibold">Atenção: </span>
                                 Um ou mais indicadores excedem os limites do perfil {PERFIS[perfilSelecionado].nome}. 
-                                Considere ajustar o número de parcelas ou rever a condição.
+                                Considere ajustar o número de parcelas ou rever a condição de pagamento.
                               </div>
                             </div>
                           </div>
