@@ -318,21 +318,23 @@ function calcularValorFinanciadoPRICE(
   // =========================================================================
 
   // =========================================================================
-  // CORREÇÃO CRÍTICA: MIP calculado com IDADE ATUAL (não idade futura)
+  // REGRA OFICIAL CAIXA (validada em simulação de 20/06/2025):
   // =========================================================================
-  // Descoberto em nova simulação oficial Caixa (13/02/2026):
-  // - Nasc. 06/12/1981 → Idade atual = 44 anos
-  // - MIP oficial = R$ 105,28
-  // - Fator = 105,28 / (417.781,03 × 0.000116) = 2.17
-  // - Fator 2.17 corresponde a IDADE 44 (faixa 43-45)
+  // MIP é calculado com a IDADE NO INÍCIO DA AMORTIZAÇÃO (após prazo de obra)
   //
-  // Se usássemos idade futura (44 + 3 anos obra = 47):
-  // - Fator seria 3.33 (faixa 46-52)
-  // - MIP seria R$ 159,18 (INCORRETO!)
+  // Prova com simulação oficial:
+  // - Nasc. 05/05/1973 → Idade atual = 52 anos
+  // - Prazo de obra = 36 meses (3 anos)
+  // - Idade início amortização = 52 + 3 = 55 anos
+  // - MIP oficial = R$ 238,58
+  // - Fator = 238,58 / (352.932,11 × 0.000116) = 5.83
+  // - Fator 5.83 = faixa 53-56 anos (corresponde a idade 55) ✓
   //
-  // CONCLUSÃO: Caixa usa IDADE ATUAL para MIP, não idade no início amort.
+  // Se usássemos idade atual (52):
+  // - Fator seria 3.327 (faixa 46-52)
+  // - MIP seria ~R$ 140 (INCORRETO!)
   // =========================================================================
-  const idadeParaMIP = idade // Idade ATUAL, não idade futura
+  const idadeParaMIP = idade + (prazoObra / 12) // Idade no INÍCIO da amortização
 
   // Estimativa inicial: usar LTV máximo como ponto de partida
   let valorFinanciado = valorFinanciadoMaximoPorLTV
@@ -405,13 +407,12 @@ function calcularValorFinanciadoSAC(
   // =========================================================================
 
   // =========================================================================
-  // CORREÇÃO CRÍTICA: MIP calculado com IDADE ATUAL (não idade futura)
+  // REGRA OFICIAL CAIXA (validada em simulação de 20/06/2025):
   // =========================================================================
-  // Descoberto em simulação oficial Caixa (13/02/2026):
-  // A Caixa usa a IDADE ATUAL para MIP, não a idade no início da amortização.
-  // Isso foi validado com múltiplas simulações oficiais.
+  // MIP é calculado com a IDADE NO INÍCIO DA AMORTIZAÇÃO (após prazo de obra)
+  // Mesma regra aplicada ao PRICE - ver comentários na função PRICE.
   // =========================================================================
-  const idadeParaMIP = idade // Idade ATUAL, não idade futura
+  const idadeParaMIP = idade + (prazoObra / 12) // Idade no INÍCIO da amortização
 
   // Estimativa inicial: usar LTV máximo como ponto de partida
   let valorFinanciado = valorFinanciadoMaximoPorLTV
@@ -640,10 +641,11 @@ export async function POST(request: NextRequest) {
 
     const percentualComprometimento = (resultado.prestacaoInicial / rendaNum) * 100
     const percentualEntrada = (resultado.valorEntrada / valorImovelNum) * 100
-    
-    // Fator MIP: usar IDADE ATUAL (descoberto em simulações oficiais Caixa)
-    // A Caixa NÃO usa a idade no início da amortização para MIP
-    const fatorMIP = obterFatorMIP(idadeAnos)
+
+    // Fator MIP: usar idade no INÍCIO da amortização (idade atual + prazo de obra)
+    // Regra validada com simulação oficial Caixa de 20/06/2025
+    const idadeInicioAmortizacao = idadeAnos + (prazoObraNum / 12)
+    const fatorMIP = obterFatorMIP(idadeInicioAmortizacao)
 
     const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
     const formatarPrazo = (meses: number) => {
