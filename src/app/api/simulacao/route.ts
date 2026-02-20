@@ -108,19 +108,22 @@ const TABELA_MIP_OFICIAL: [number, number][] = [
   // =========================================================================
   // FATORES MIP CALIBRADOS com simulações oficiais Caixa (junho 2025)
   // =========================================================================
-  // Duas simulações oficiais comprovam que a faixa 5.83 começa aos 52 anos:
+  // Análise de 5 simulações oficiais com diferentes idades:
   //
-  // | Nascimento  | Idade Atual | MIP Oficial | VF         | Fator |
-  // |-------------|-------------|-------------|------------|-------|
-  // | 05/05/1973  | 52 anos     | R$ 238,58   | R$ 352.932 | 5.83  |
-  // | 05/08/1971  | 54 anos     | R$ 235,17   | R$ 347.898 | 5.83  |
+  // | Nascimento  | Idade | MIP Oficial | VF         | Fator |
+  // |-------------|-------|-------------|------------|-------|
+  // | 05/02/1976  | 50    | R$ 181,06   | R$ 469.078 | 3.327 |
+  // | 05/05/1973  | 52    | R$ 238,58   | R$ 352.932 | 5.83  |
+  // | 05/08/1971  | 54    | R$ 235,17   | R$ 347.898 | 5.83  |
+  // | 04/02/1971  | 55    | R$ 234,08   | R$ 346.272 | 5.83  |
+  // | 05/08/1970  | 55    | R$ 326,79   | R$ 483.418 | 5.83  |
   //
-  // Ambas usam fator 5.83, confirmando que a faixa começa aos 52 anos (não 53).
+  // CONCLUSÃO: A faixa 5.83 começa aos 52 anos (não 50).
   // =========================================================================
   [42, 1.33],   // até 42 anos → fator 1.33
   [45, 2.17],   // 43-45 anos → fator 2.17
-  [49, 3.327],  // 46-49 anos → fator 3.327
-  [56, 5.83],   // 50-56 anos → fator 5.83 (CALIBRADO: começa aos 50, não 53)
+  [51, 3.327],  // 46-51 anos → fator 3.327
+  [56, 5.83],   // 52-56 anos → fator 5.83 (começa aos 52)
   [61, 13.22],  // 57-61 anos → fator 13.22
   [67, 23.54],  // 62-67 anos → fator 23.54
   [71, 28.09],  // 68-71 anos → fator 28.09
