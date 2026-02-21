@@ -108,10 +108,11 @@ const TABELA_MIP_OFICIAL: [number, number][] = [
   // =========================================================================
   // FATORES MIP CALIBRADOS com simulações oficiais Caixa (junho 2025)
   // =========================================================================
-  // Análise de 6 simulações oficiais com diferentes idades:
+  // Análise de 7 simulações oficiais com diferentes idades:
   //
   // | Nascimento  | Idade | MIP Oficial | VF         | Fator |
   // |-------------|-------|-------------|------------|-------|
+  // | 05/08/1984  | 41    | R$ 95,55    | R$ 379.198 | 2.17  |
   // | 05/02/1976  | 50    | R$ 181,06   | R$ 469.078 | 3.327 |
   // | 05/08/1974  | 51    | R$ 240,64   | R$ 355.980 | 5.83  |
   // | 05/05/1973  | 52    | R$ 238,58   | R$ 352.932 | 5.83  |
@@ -119,10 +120,10 @@ const TABELA_MIP_OFICIAL: [number, number][] = [
   // | 04/02/1971  | 55    | R$ 234,08   | R$ 346.272 | 5.83  |
   // | 05/08/1970  | 55    | R$ 326,79   | R$ 483.418 | 5.83  |
   //
-  // CONCLUSÃO: A faixa 5.83 começa aos 51 anos (não 52).
+  // CONCLUSÃO: A faixa 2.17 começa aos 41 anos (não 43).
   // =========================================================================
-  [42, 1.33],   // até 42 anos → fator 1.33
-  [45, 2.17],   // 43-45 anos → fator 2.17
+  [40, 1.33],   // até 40 anos → fator 1.33
+  [45, 2.17],   // 41-45 anos → fator 2.17 (validado: idade 41 = 2.17)
   [50, 3.327],  // 46-50 anos → fator 3.327 (validado: idade 50 = 3.327)
   [56, 5.83],   // 51-56 anos → fator 5.83 (validado: idades 51, 52, 54, 55 = 5.83)
   [61, 13.22],  // 57-61 anos → fator 13.22
