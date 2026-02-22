@@ -15,15 +15,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Simulador de Financiamento Imobiliário",
+  title: "Espelho de Vendas",
   description: "Simulador profissional de financiamento imobiliário com tabelas diretas e simulação Caixa.",
   keywords: ["financiamento", "imobiliário", "Caixa", "simulador", "PRICE", "SAC"],
   authors: [{ name: "Z.ai Team" }],
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    icon: "/icon.png",
   },
   openGraph: {
-    title: "Simulador de Financiamento Imobiliário",
+    title: "Espelho de Vendas",
     description: "Simulador profissional de financiamento imobiliário",
     type: "website",
   },
