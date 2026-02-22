@@ -39,6 +39,7 @@ import {
   Medal,
   Shield
 } from 'lucide-react'
+import { ThemeToggleSimple } from '@/components/theme-toggle-simple'
 
 interface FluxoItem {
   id: string
@@ -589,13 +590,14 @@ function CotacaoContent() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
-        <div className="mb-6">
+        <div className="mb-6 flex items-center justify-between">
           <Link href="/simulador-caixa">
             <Button variant="ghost" className="gap-2">
               <ArrowLeft className="w-4 h-4" />
               Voltar ao Simulador
             </Button>
           </Link>
+          <ThemeToggleSimple />
         </div>
 
         {/* Header */}

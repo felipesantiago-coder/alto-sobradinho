@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ArrowLeft, Calculator, AlertCircle, Building2, Wallet, TrendingUp, Clock } from 'lucide-react'
 import Link from 'next/link'
+import { ThemeToggleSimple } from '@/components/theme-toggle-simple'
 
 const deliveryDates: Record<string, Date> = {
   'alto-da-alvorada': new Date('2027-03-31'),
@@ -230,8 +231,9 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900 dark:to-slate-800">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
-        <div className="mb-6">
+        <div className="mb-6 flex items-center justify-between">
           <Link href="/"><Button variant="ghost" className="gap-2"><ArrowLeft className="w-4 h-4" />Voltar</Button></Link>
+          <ThemeToggleSimple />
         </div>
 
         <Card className="mb-6 dark:bg-background bg-white shadow-lg">
@@ -312,7 +314,7 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
                     <SelectContent>
                       <SelectItem value="4.5">4,50% a.a.</SelectItem>
                       <SelectItem value="5.72">5,72% a.a.</SelectItem>
-                      <SelectItem value="7.5">7,50% </SelectItem>
+                      <SelectItem value="7.5">7,50% a.a.</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -415,7 +417,7 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
                 </div>
                 
                 <div className="mt-3 text-xs text-blue-600 dark:text-blue-400">
-                  Este saldo será financiado em 120 parcelas com taxa IPCA + 1% a.m.
+                  Este saldo será financiado em 120 parcelas com taxa IPCA + 1% a.a.
                 </div>
               </div>
             </div>

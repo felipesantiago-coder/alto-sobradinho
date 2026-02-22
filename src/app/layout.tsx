@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
+import { ThemeProvider } from "@/components/theme-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,24 +15,17 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Espelho de Vendas",
-  description: "Alto Sobradinho",
-  keywords: ["Z.ai", "Next.js", "TypeScript", "Tailwind CSS", "shadcn/ui", "AI development", "React"],
+  title: "Simulador de Financiamento Imobiliário",
+  description: "Simulador profissional de financiamento imobiliário com tabelas diretas e simulação Caixa.",
+  keywords: ["financiamento", "imobiliário", "Caixa", "simulador", "PRICE", "SAC"],
   authors: [{ name: "Z.ai Team" }],
   icons: {
-    icon: "/icon.png",
+    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
   },
   openGraph: {
-    title: "Espelho de Vendas",
-    description: "Alto Sobradinho",
-    url: "https://chat.z.ai",
-    siteName: "Z.ai",
+    title: "Simulador de Financiamento Imobiliário",
+    description: "Simulador profissional de financiamento imobiliário",
     type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Espelho de Vendas",
-    description: "Alto Sobradinho",
   },
 };
 
@@ -41,13 +35,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="pt-BR" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
         suppressHydrationWarning
       >
-        {children}
-        <Toaster />
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange={false}
+        >
+          {children}
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );
