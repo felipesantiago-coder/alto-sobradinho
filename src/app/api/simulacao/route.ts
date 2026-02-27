@@ -488,11 +488,14 @@ function calcularValorFinanciadoSAC(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { renda, dataNascimento, valorImovel, sistemaAmortizacao, prazoObra } = body
+    const { renda, dataNascimento, valorImovel, sistemaAmortizacao, prazoObra, prazoCustomizado, entradaCustomizada } = body
 
     if (!renda || !dataNascimento || !valorImovel || !sistemaAmortizacao) {
       return NextResponse.json({ error: 'Faltam dados obrigatórios para a simulação.' }, { status: 400 })
     }
+
+    // Valor mínimo de financiamento
+    const VALOR_FINANCIADO_MINIMO = 100000
 
     // Função para parsear valores monetários (suporta formato brasileiro e simples)
     const parseValorMonetario = (valor: string | number): number => {
@@ -557,6 +560,9 @@ export async function POST(request: NextRequest) {
     const valorImovelNum = parseValorMonetario(valorImovel)
     const prazoObraNum = prazoObra ? parseInt(prazoObra) : PRAZO_OBRA_PADRAO
 
+    // Função de formatação de moeda (usada nas mensagens de erro)
+    const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
+
     if (isNaN(rendaNum) || isNaN(valorImovelNum)) {
       return NextResponse.json({ error: 'Valores inválidos para renda ou valor do imóvel.' }, { status: 400 })
     }
@@ -590,15 +596,43 @@ export async function POST(request: NextRequest) {
 
     const sistema = sistemaAmortizacao.toUpperCase().includes('SAC') ? 'SAC' : 'PRICE'
     const parametros = PARAMETROS[sistema]
-    const prazoMaximoAmortizacao = calcularPrazoMaximo(idadeEmMeses, sistema)
+    const prazoMaximoCalculado = calcularPrazoMaximo(idadeEmMeses, sistema)
 
-    if (prazoMaximoAmortizacao < PRAZO_MINIMO_AMORTIZACAO) {
+    if (prazoMaximoCalculado < PRAZO_MINIMO_AMORTIZACAO) {
       return NextResponse.json({
         error: `Não é possível financiar. Prazo mínimo permitido é de 10 anos. Com a idade informada, o prazo máximo disponível é inferior ao mínimo exigido.`
       }, { status: 400 })
     }
 
-    const prazoTotal = prazoMaximoAmortizacao + prazoObraNum
+    // ==========================================================================
+    // DEFINIR PRAZO DE AMORTIZAÇÃO
+    // ==========================================================================
+    // Se prazoCustomizado foi informado, usar ele (respeitando os limites)
+    // Caso contrário, usar o prazo máximo calculado
+    let prazoAmortizacao: number
+    
+    if (prazoCustomizado !== undefined && prazoCustomizado !== null && prazoCustomizado !== '') {
+      const prazoCustomNum = parseInt(prazoCustomizado.toString())
+      
+      // Validar prazo customizado
+      if (isNaN(prazoCustomNum) || prazoCustomNum < PRAZO_MINIMO_AMORTIZACAO) {
+        return NextResponse.json({
+          error: `Prazo customizado deve ser de no mínimo ${PRAZO_MINIMO_AMORTIZACAO} meses (10 anos).`
+        }, { status: 400 })
+      }
+      
+      if (prazoCustomNum > prazoMaximoCalculado) {
+        return NextResponse.json({
+          error: `Prazo customizado de ${prazoCustomNum} meses excede o máximo permitido para sua idade (${prazoMaximoCalculado} meses).`
+        }, { status: 400 })
+      }
+      
+      prazoAmortizacao = prazoCustomNum
+    } else {
+      prazoAmortizacao = prazoMaximoCalculado
+    }
+
+    const prazoTotal = prazoAmortizacao + prazoObraNum
 
     let resultado: {
       valorFinanciado: number
@@ -614,7 +648,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (sistema === 'SAC') {
-      const calculoSAC = calcularValorFinanciadoSAC(rendaNum, TAXA_JUROS_MENSAL, prazoMaximoAmortizacao, valorImovelNum, idadeAnos, prazoObraNum)
+      const calculoSAC = calcularValorFinanciadoSAC(rendaNum, TAXA_JUROS_MENSAL, prazoAmortizacao, valorImovelNum, idadeAnos, prazoObraNum)
       resultado = {
         valorFinanciado: calculoSAC.valorFinanciado,
         valorEntrada: valorImovelNum - calculoSAC.valorFinanciado,
@@ -628,7 +662,7 @@ export async function POST(request: NextRequest) {
         prestacaoBase: calculoSAC.amortizacao + calculoSAC.jurosPrimeira
       }
     } else {
-      const calculoPRICE = calcularValorFinanciadoPRICE(rendaNum, TAXA_JUROS_MENSAL, prazoMaximoAmortizacao, valorImovelNum, idadeAnos, prazoObraNum)
+      const calculoPRICE = calcularValorFinanciadoPRICE(rendaNum, TAXA_JUROS_MENSAL, prazoAmortizacao, valorImovelNum, idadeAnos, prazoObraNum)
       resultado = {
         valorFinanciado: calculoPRICE.valorFinanciado,
         valorEntrada: valorImovelNum - calculoPRICE.valorFinanciado,
@@ -645,6 +679,112 @@ export async function POST(request: NextRequest) {
 
     if (resultado.valorFinanciado <= 0) {
       return NextResponse.json({ error: 'Não é possível financiar com os valores informados.' }, { status: 400 })
+    }
+
+    // ==========================================================================
+    // VALIDAÇÃO E APLICAÇÃO DE ENTRADA CUSTOMIZADA
+    // ==========================================================================
+    // Se entradaCustomizada foi informada, recalcular o valor financiado
+    // O valor financiado deve ser no mínimo R$ 100.000,00
+    if (entradaCustomizada !== undefined && entradaCustomizada !== null && entradaCustomizada !== '') {
+      const entradaCustomNum = parseValorMonetario(entradaCustomizada.toString())
+      
+      if (isNaN(entradaCustomNum) || entradaCustomNum < 0) {
+        return NextResponse.json({
+          error: 'Valor de entrada customizado inválido.'
+        }, { status: 400 })
+      }
+      
+      // Calcular novo valor financiado
+      const novoValorFinanciado = valorImovelNum - entradaCustomNum
+      
+      // Validar valor mínimo de financiamento
+      if (novoValorFinanciado < VALOR_FINANCIADO_MINIMO) {
+        return NextResponse.json({
+          error: `O valor a ser financiado (R$ ${formatCurrency(novoValorFinanciado).replace('R$', '').trim()}) é menor que o mínimo permitido de R$ 100.000,00. Aumente o valor financiado ou reduza a entrada.`
+        }, { status: 400 })
+      }
+      
+      // Validar se a entrada não excede o valor do imóvel
+      if (entradaCustomNum >= valorImovelNum) {
+        return NextResponse.json({
+          error: 'O valor da entrada não pode ser maior ou igual ao valor do imóvel.'
+        }, { status: 400 })
+      }
+      
+      // Validar LTV máximo
+      const ltvCalculado = novoValorFinanciado / valorImovelNum
+      if (ltvCalculado > parametros.ltvMaximo) {
+        return NextResponse.json({
+          error: `A entrada informada resulta em um LTV de ${(ltvCalculado * 100).toFixed(1)}%, que excede o máximo permitido de ${(parametros.ltvMaximo * 100).toFixed(0)}% para o sistema ${sistema}.`
+        }, { status: 400 })
+      }
+      
+      // Recalcular prestação com o novo valor financiado
+      if (sistema === 'SAC') {
+        const amortizacaoMensal = novoValorFinanciado / prazoAmortizacao
+        const jurosPrimeira = novoValorFinanciado * TAXA_JUROS_MENSAL
+        const seguroMIP = calcularSeguroMIP(novoValorFinanciado, idadeAnos)
+        const seguroDFI = calcularSeguroDFI(valorImovelNum)
+        const prestacaoInicial = amortizacaoMensal + jurosPrimeira + seguroMIP + seguroDFI + TAXA_OPERACIONAL_MENSAL
+        const prestacaoInicialAjustada = ajustarParcela(prestacaoInicial)
+        
+        // Validar comprometimento de renda
+        if (prestacaoInicialAjustada > rendaNum * parametros.limiteRenda) {
+          return NextResponse.json({
+            error: `A prestação de ${formatCurrency(prestacaoInicialAjustada)} excede o limite de ${(parametros.limiteRenda * 100).toFixed(0)}% da renda (${formatCurrency(rendaNum * parametros.limiteRenda)}).`
+          }, { status: 400 })
+        }
+        
+        const jurosUltima = amortizacaoMensal * TAXA_JUROS_MENSAL
+        const prestacaoFinal = amortizacaoMensal + jurosUltima + seguroMIP + seguroDFI + TAXA_OPERACIONAL_MENSAL
+        
+        resultado = {
+          valorFinanciado: novoValorFinanciado,
+          valorEntrada: entradaCustomNum,
+          prestacaoInicial: prestacaoInicialAjustada,
+          prestacaoFinal: ajustarParcela(prestacaoFinal),
+          amortizacao: amortizacaoMensal,
+          juros: jurosPrimeira,
+          seguroMIP,
+          seguroDFI,
+          taxaOperacional: TAXA_OPERACIONAL_MENSAL,
+          prestacaoBase: amortizacaoMensal + jurosPrimeira
+        }
+      } else {
+        const prestacaoBase = calcularPrestacaoPRICE(novoValorFinanciado, TAXA_JUROS_MENSAL, prazoAmortizacao)
+        const seguroMIP = calcularSeguroMIP(novoValorFinanciado, idadeAnos)
+        const seguroDFI = calcularSeguroDFI(valorImovelNum)
+        const prestacaoTotal = prestacaoBase + seguroMIP + seguroDFI + TAXA_OPERACIONAL_MENSAL
+        const prestacaoAjustada = ajustarParcela(prestacaoTotal)
+        
+        // Validar comprometimento de renda
+        if (prestacaoAjustada > rendaNum * parametros.limiteRenda) {
+          return NextResponse.json({
+            error: `A prestação de ${formatCurrency(prestacaoAjustada)} excede o limite de ${(parametros.limiteRenda * 100).toFixed(0)}% da renda (${formatCurrency(rendaNum * parametros.limiteRenda)}).`
+          }, { status: 400 })
+        }
+        
+        resultado = {
+          valorFinanciado: novoValorFinanciado,
+          valorEntrada: entradaCustomNum,
+          prestacaoInicial: prestacaoAjustada,
+          prestacaoFinal: prestacaoAjustada,
+          amortizacao: 0,
+          juros: prestacaoBase,
+          seguroMIP,
+          seguroDFI,
+          taxaOperacional: TAXA_OPERACIONAL_MENSAL,
+          prestacaoBase
+        }
+      }
+    }
+    
+    // Validação final: valor financiado mínimo
+    if (resultado.valorFinanciado < VALOR_FINANCIADO_MINIMO) {
+      return NextResponse.json({
+        error: `O valor financiado de ${formatCurrency(resultado.valorFinanciado)} é menor que o mínimo permitido de R$ 100.000,00.`
+      }, { status: 400 })
     }
 
     const percentualComprometimento = (resultado.prestacaoInicial / rendaNum) * 100
@@ -666,8 +806,8 @@ export async function POST(request: NextRequest) {
       mensagem: 'Simulação concluída com sucesso.',
       dados: {
         Sistema_Amortizacao: `${sistema} TR`,
-        Prazo_Amortizacao: formatarPrazo(prazoMaximoAmortizacao),
-        Prazo_Amortizacao_Meses: prazoMaximoAmortizacao,
+        Prazo_Amortizacao: formatarPrazo(prazoAmortizacao),
+        Prazo_Amortizacao_Meses: prazoAmortizacao,
         Valor_Imovel: formatCurrency(valorImovelNum),
         Valor_Entrada: formatCurrency(resultado.valorEntrada),
         Percentual_Entrada: `${percentualEntrada.toFixed(1)}%`,
