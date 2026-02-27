@@ -37,7 +37,8 @@ import {
   Gem,
   Crown,
   Medal,
-  Shield
+  Shield,
+  RefreshCw
 } from 'lucide-react'
 import { ThemeToggleSimple } from '@/components/theme-toggle-simple'
 
@@ -539,6 +540,52 @@ function CotacaoContent() {
   // Remover campo do fluxo
   const removerCampo = (id: string) => {
     setFluxoPagamento(fluxoPagamento.filter(f => f.id !== id))
+  }
+
+  // Função para limpar todos os campos e restaurar valores originais
+  const limparCamposERestaurar = () => {
+    // Restaurar valores originais do financiamento (dos searchParams)
+    setValorFinanciadoAtual(valorFinanciado)
+    setPrimeiraPrestacaoAtual(primeiraPrestacao)
+    setUltimaPrestacaoAtual(ultimaPrestacao)
+
+    // Resetar estados de controle
+    setFinanciamentoAtualizado(false)
+    setNovaSimulacao(null)
+    setExcedenteEntrada(0)
+
+    // Restaurar fluxo de pagamento para o estado inicial (apenas financiamento e bônus)
+    const dataPosEntrega = getDataPosEntrega()
+    const fluxoInicial: FluxoItem[] = [
+      {
+        id: 'financiamento',
+        tipo: 'Financiamento',
+        valor: valorFinanciado,
+        valorEditavel: '',
+        editavel: false,
+        icon: <Building2 className="w-4 h-4 text-blue-600" />,
+        data: dataPosEntrega,
+        dataEditavel: false
+      }
+    ]
+
+    if (bonusConstrutora > 0) {
+      fluxoInicial.push({
+        id: 'bonus',
+        tipo: 'Bônus Construtora',
+        valor: bonusConstrutora,
+        valorEditavel: '',
+        editavel: false,
+        icon: <PiggyBank className="w-4 h-4 text-amber-600" />,
+        data: dataPosEntrega,
+        dataEditavel: false
+      })
+    }
+
+    setFluxoPagamento(fluxoInicial)
+
+    // Resetar parcelas do pró-soluto
+    setParcelasProSoluto(0)
   }
 
   // Atualizar valor de campo editável
@@ -1422,11 +1469,10 @@ function CotacaoContent() {
                   <Button
                     variant="outline"
                     className="flex-1 text-xs sm:text-sm h-9 sm:h-10"
-                    onClick={() => {
-                      setFluxoPagamento(fluxoPagamento.filter(f => !f.editavel))
-                    }}
+                    onClick={limparCamposERestaurar}
                   >
-                    Limpar Campos
+                    <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                    Limpar e Restaurar
                   </Button>
                   <Button
                     className="flex-1 gap-2 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-xs sm:text-sm h-9 sm:h-10"
