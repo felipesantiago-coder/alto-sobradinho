@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { CurrencyInput } from '@/components/ui/currency-input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
@@ -273,14 +274,13 @@ function SimuladorCaixaContent() {
                     <Label htmlFor="valorImovel">Valor de Avaliação *</Label>
                     <div className="relative">
                       <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                      <Input
+                      <CurrencyInput
                         id="valorImovel"
-                        placeholder="Ex: 598000"
+                        placeholder="0,00"
                         value={valorImovel}
-                        onChange={(e) => setValorImovel(e.target.value)}
+                        onChange={(value) => setValorImovel(value)}
                         disabled={loading}
                         className="pl-10"
-                        inputMode="decimal"
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">Valor usado para cálculo do financiamento (LTV)</p>
@@ -302,14 +302,13 @@ function SimuladorCaixaContent() {
                   <Label htmlFor="renda">Renda Familiar Mensal *</Label>
                   <div className="relative">
                     <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <Input
+                    <CurrencyInput
                       id="renda"
-                      placeholder="Ex: 10000"
+                      placeholder="0,00"
                       value={renda}
-                      onChange={(e) => setRenda(e.target.value)}
+                      onChange={(value) => setRenda(value)}
                       disabled={loading}
                       className="pl-10"
-                      inputMode="decimal"
                     />
                   </div>
                 </div>
@@ -377,14 +376,13 @@ function SimuladorCaixaContent() {
                   <Label htmlFor="entradaCustomizada">Entrada Customizada (R$)</Label>
                   <div className="relative">
                     <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <Input
+                    <CurrencyInput
                       id="entradaCustomizada"
-                      placeholder="Ex: 150000"
+                      placeholder="0,00"
                       value={entradaCustomizada}
-                      onChange={(e) => setEntradaCustomizada(e.target.value)}
+                      onChange={(value) => setEntradaCustomizada(value)}
                       disabled={loading}
                       className="pl-10"
-                      inputMode="decimal"
                     />
                   </div>
                   <p className="text-xs text-muted-foreground">
