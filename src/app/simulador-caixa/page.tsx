@@ -280,6 +280,7 @@ function SimuladorCaixaContent() {
                         onChange={(e) => setValorImovel(e.target.value)}
                         disabled={loading}
                         className="pl-10"
+                        inputMode="decimal"
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">Valor usado para cálculo do financiamento (LTV)</p>
@@ -308,6 +309,7 @@ function SimuladorCaixaContent() {
                       onChange={(e) => setRenda(e.target.value)}
                       disabled={loading}
                       className="pl-10"
+                      inputMode="decimal"
                     />
                   </div>
                 </div>
@@ -364,6 +366,7 @@ function SimuladorCaixaContent() {
                       disabled={loading}
                       min={120}
                       className="pl-10"
+                      inputMode="numeric"
                     />
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -381,6 +384,7 @@ function SimuladorCaixaContent() {
                       onChange={(e) => setEntradaCustomizada(e.target.value)}
                       disabled={loading}
                       className="pl-10"
+                      inputMode="decimal"
                     />
                   </div>
                   <p className="text-xs text-muted-foreground">
