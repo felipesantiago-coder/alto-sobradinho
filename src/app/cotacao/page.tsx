@@ -316,8 +316,10 @@ function CotacaoContent() {
 
   const parseValue = (val: string): number => {
     if (!val) return 0
-    const limpo = val.replace(/[R$\s.]/g, '').replace(',', '.')
-    return parseFloat(limpo) || 0
+    // CurrencyInput returns clean numeric strings (e.g., "1000" or "1000.5")
+    // Just parse directly - no need for complex formatting removal
+    const num = parseFloat(val)
+    return isNaN(num) ? 0 : num
   }
 
   // Valor base para verificação
