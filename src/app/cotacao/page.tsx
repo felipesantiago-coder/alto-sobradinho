@@ -183,6 +183,19 @@ function CotacaoContent() {
   // Flag para controlar inicialização
   const [initialized, setInitialized] = useState(false)
 
+  // Estados para controle de excedente na entrada
+  const [excedenteEntrada, setExcedenteEntrada] = useState<number>(0)
+  const [recalculando, setRecalculando] = useState(false)
+  const [novaSimulacao, setNovaSimulacao] = useState<{
+    valorFinanciado: number
+    primeiraPrestacao: number
+    ultimaPrestacao: number
+  } | null>(null)
+  const [financiamentoAtualizado, setFinanciamentoAtualizado] = useState(false)
+  const [valorFinanciadoAtual, setValorFinanciadoAtual] = useState(valorFinanciado)
+  const [primeiraPrestacaoAtual, setPrimeiraPrestacaoAtual] = useState(primeiraPrestacao)
+  const [ultimaPrestacaoAtual, setUltimaPrestacaoAtual] = useState(ultimaPrestacao)
+
   // Campos disponíveis para adicionar
   const camposDisponiveis = [
     { id: 'sinalAto', tipo: 'Sinal Ato', icon: <Wallet className="w-4 h-4 text-green-600" /> },
@@ -320,7 +333,7 @@ function CotacaoContent() {
 
   // Verificar se pode mostrar pró-soluto
   const sinalAtoItem = fluxoPagamento.find(f => f.id === 'sinalAto')
-  const podeMostrarProSoluto = sinalAtoItem && parseValue(sinalAtoItem.valorEditavel) > 0 && valorFinanciado > 0
+  const podeMostrarProSoluto = sinalAtoItem && parseValue(sinalAtoItem.valorEditavel) > 0 && valorFinanciadoAtual > 0
 
   // Calcular pró-soluto base
   const calcularProSolutoBase = (): number => {
@@ -582,6 +595,123 @@ function CotacaoContent() {
     return hojeStr
   }
 
+  // =============================================================================
+  // CÁLCULO DO EXCEDENTE NA ENTRADA DO FINANCIAMENTO
+  // =============================================================================
+  // A entrada do financiamento é: max(valorAvaliacao, valorVenda) - valorFinanciado
+  // Se a soma dos valores do fluxo (exceto financiamento) exceder a entrada,
+  // o excedente deve ser retirado do valor a ser financiado.
+
+  const valorImovelParaCalculo = Math.max(valorAvaliacao, valorVenda)
+  const entradaFinanciamento = valorImovelParaCalculo - valorFinanciadoAtual
+
+  // Calcular soma dos valores do fluxo EXCETO o financiamento
+  const calcularSomaFluxoSemFinanciamento = (): number => {
+    return fluxoPagamento.reduce((acc, item) => {
+      if (item.id === 'financiamento') return acc // Ignorar financiamento
+      if (item.editavel) {
+        return acc + parseValue(item.valorEditavel)
+      }
+      return acc + item.valor
+    }, 0)
+  }
+
+  const somaFluxoSemFinanciamento = calcularSomaFluxoSemFinanciamento()
+  const excedenteCalculado = Math.max(0, somaFluxoSemFinanciamento - entradaFinanciamento)
+
+  // Atualizar estado do excedente
+  useEffect(() => {
+    setExcedenteEntrada(excedenteCalculado)
+  }, [excedenteCalculado])
+
+  // Resetar o estado de excedente quando o financiamento é atualizado
+  useEffect(() => {
+    if (financiamentoAtualizado) {
+      // Recalcular o excedente com o novo valor financiado
+      const novaEntrada = valorImovelParaCalculo - valorFinanciadoAtual
+      const novoExcedente = Math.max(0, somaFluxoSemFinanciamento - novaEntrada)
+      if (novoExcedente === 0) {
+        setExcedenteEntrada(0)
+        setNovaSimulacao(null)
+      }
+    }
+  }, [financiamentoAtualizado, valorFinanciadoAtual, somaFluxoSemFinanciamento, valorImovelParaCalculo])
+
+  // Função para recalcular o financiamento
+  const recalcularFinanciamento = async () => {
+    if (!renda || !dataNascimento || excedenteEntrada <= 0) return
+
+    setRecalculando(true)
+
+    try {
+      // Novo valor financiado = valor atual - excedente
+      const novoValorFinanciado = valorFinanciadoAtual - excedenteEntrada
+
+      const response = await fetch('/api/simulacao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          renda,
+          dataNascimento,
+          valorImovel: valorImovelParaCalculo,
+          sistemaAmortizacao
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.sucesso) {
+        // Extrair valores numéricos
+        const parseCurrencyString = (str: string): number => {
+          const limpo = str.replace(/[R$\s.]/g, '').replace(',', '.')
+          return parseFloat(limpo) || 0
+        }
+
+        // Calcular nova prestação proporcional ao novo valor financiado
+        const vfOriginal = parseCurrencyString(data.dados.Valor_Total_Financiado)
+        const prestacaoOriginal = parseCurrencyString(data.dados.Primeira_Prestacao)
+        const fatorProporcao = novoValorFinanciado / vfOriginal
+        const novaPrestacao = prestacaoOriginal * fatorProporcao
+
+        setNovaSimulacao({
+          valorFinanciado: novoValorFinanciado,
+          primeiraPrestacao: novaPrestacao,
+          ultimaPrestacao: sistemaAmortizacao.includes('SAC') ? novaPrestacao * 0.3 : novaPrestacao
+        })
+      }
+    } catch (error) {
+      console.error('Erro ao recalcular financiamento:', error)
+    } finally {
+      setRecalculando(false)
+    }
+  }
+
+  // Função para aplicar o novo valor do financiamento ao fluxo
+  const aplicarNovoFinanciamento = () => {
+    if (!novaSimulacao) return
+
+    // Atualizar o valor financiado atual
+    setValorFinanciadoAtual(novaSimulacao.valorFinanciado)
+
+    // Atualizar os valores das prestações
+    setPrimeiraPrestacaoAtual(formatCurrency(novaSimulacao.primeiraPrestacao))
+    setUltimaPrestacaoAtual(formatCurrency(novaSimulacao.ultimaPrestacao))
+
+    // Atualizar o item de financiamento no fluxo de pagamento
+    setFluxoPagamento(prev => prev.map(item => {
+      if (item.id === 'financiamento') {
+        return {
+          ...item,
+          valor: novaSimulacao.valorFinanciado
+        }
+      }
+      return item
+    }))
+
+    // Marcar que o financiamento foi atualizado
+    setFinanciamentoAtualizado(true)
+  }
+
   if (!isClient) return null
 
   const proSoluto = podeMostrarProSoluto ? calcularProSolutoBase() : 0
@@ -740,18 +870,23 @@ function CotacaoContent() {
             </Card>
 
             {/* Dados do Financiamento */}
-            <Card className="shadow-md border-0 bg-white/80 backdrop-blur dark:bg-slate-800/80">
+            <Card className={`shadow-md border-0 bg-white/80 backdrop-blur dark:bg-slate-800/80 ${financiamentoAtualizado ? 'ring-2 ring-green-400' : ''}`}>
               <CardHeader className="pb-2 sm:pb-4">
                 <CardTitle className="text-base sm:text-lg flex items-center gap-2">
                   <Building2 className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
                   Financiamento Caixa
+                  {financiamentoAtualizado && (
+                    <span className="text-xs bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-300 px-2 py-0.5 rounded-full ml-auto">
+                      Atualizado
+                    </span>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2 sm:space-y-3 text-xs sm:text-sm">
-                  <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg sm:rounded-xl p-3 sm:p-4 text-white -mx-1">
-                    <p className="text-xs text-blue-100 mb-1">Valor Financiado</p>
-                    <p className="text-xl sm:text-2xl font-bold">{formatCurrency(valorFinanciado)}</p>
+                  <div className={`rounded-lg sm:rounded-xl p-3 sm:p-4 text-white -mx-1 ${financiamentoAtualizado ? 'bg-gradient-to-r from-green-500 to-green-600' : 'bg-gradient-to-r from-blue-500 to-blue-600'}`}>
+                    <p className="text-xs opacity-90 mb-1">Valor Financiado</p>
+                    <p className="text-xl sm:text-2xl font-bold">{formatCurrency(valorFinanciadoAtual)}</p>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Sistema</span>
@@ -763,19 +898,108 @@ function CotacaoContent() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">1ª Prestação</span>
-                    <span className="font-semibold text-green-600">{primeiraPrestacao}</span>
+                    <span className="font-semibold text-green-600">{primeiraPrestacaoAtual}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Última Prestação</span>
-                    <span className="font-semibold">{ultimaPrestacao}</span>
+                    <span className="font-semibold">{ultimaPrestacaoAtual}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Entrada</span>
-                    <span className="font-semibold">{percentualEntrada}</span>
+                    <span className="font-semibold">
+                      {financiamentoAtualizado
+                        ? formatPercent((valorImovelParaCalculo - valorFinanciadoAtual) / valorImovelParaCalculo * 100)
+                        : percentualEntrada}
+                    </span>
                   </div>
                 </div>
               </CardContent>
             </Card>
+
+            {/* Aviso de Excedente na Entrada */}
+            {excedenteEntrada > 0 && (
+              <Card className="shadow-md border-2 border-amber-400 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/30 dark:to-orange-900/30">
+                <CardContent className="pt-4 sm:pt-6">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 bg-amber-100 dark:bg-amber-800 rounded-full flex items-center justify-center flex-shrink-0">
+                      <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-amber-800 dark:text-amber-200 text-sm sm:text-base">
+                        Atenção: Valores excedem a entrada do financiamento
+                      </h3>
+                      <div className="mt-2 text-xs sm:text-sm text-amber-700 dark:text-amber-300 space-y-1">
+                        <p>A soma dos pagamentos adicionados ({formatCurrency(somaFluxoSemFinanciamento)}) excede a entrada do financiamento ({formatCurrency(entradaFinanciamento)}).</p>
+                        <p className="font-medium">
+                          <span className="text-amber-900 dark:text-amber-100">Excedente: </span>
+                          {formatCurrency(excedenteEntrada)}
+                        </p>
+                        <p className="mt-2 text-xs">
+                          Este excedente será descontado do valor financiado, resultando em uma nova prestação.
+                        </p>
+                      </div>
+                      
+                      <div className="mt-4 flex flex-col sm:flex-row gap-2">
+                        <Button
+                          onClick={recalcularFinanciamento}
+                          disabled={recalculando}
+                          className="gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
+                        >
+                          {recalculando ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Recalculando...
+                            </>
+                          ) : (
+                            <>
+                              <Calculator className="w-4 h-4" />
+                              Recalcular Financiamento
+                            </>
+                          )}
+                        </Button>
+                      </div>
+
+                      {/* Resultado do novo cálculo */}
+                      {novaSimulacao && !financiamentoAtualizado && (
+                        <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/30 rounded-lg border border-green-200 dark:border-green-700">
+                          <p className="text-xs text-green-600 dark:text-green-400 font-medium mb-2">Novo financiamento calculado:</p>
+                          <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm mb-3">
+                            <div>
+                              <span className="text-muted-foreground">Valor Financiado:</span>
+                              <p className="font-bold text-green-700 dark:text-green-300">{formatCurrency(novaSimulacao.valorFinanciado)}</p>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Nova Prestação:</span>
+                              <p className="font-bold text-green-700 dark:text-green-300">{formatCurrency(novaSimulacao.primeiraPrestacao)}</p>
+                            </div>
+                          </div>
+                          <Button
+                            onClick={aplicarNovoFinanciamento}
+                            className="w-full gap-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                            Aplicar Novo Valor
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* Mensagem de sucesso após aplicar */}
+                      {financiamentoAtualizado && (
+                        <div className="mt-4 p-3 bg-green-100 dark:bg-green-800/50 rounded-lg border border-green-300 dark:border-green-600">
+                          <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
+                            <CheckCircle className="w-4 h-4" />
+                            <span className="font-medium text-sm">Financiamento atualizado com sucesso!</span>
+                          </div>
+                          <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                            O novo valor foi aplicado ao fluxo de pagamento. Continue com a cotação.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Coluna Direita - Fluxo de Pagamento */}
