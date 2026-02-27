@@ -1147,6 +1147,7 @@ function CotacaoContent() {
                                   onChange={(e) => atualizarValor(item.id, e.target.value)}
                                   placeholder="0,00"
                                   className="pl-8 sm:pl-10 xs:w-28 sm:w-32 text-right text-xs sm:text-sm h-9"
+                                  inputMode="decimal"
                                 />
                               </div>
                               <Button
