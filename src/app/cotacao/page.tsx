@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { CurrencyInput } from '@/components/ui/currency-input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Slider } from '@/components/ui/slider'
@@ -1142,12 +1143,11 @@ function CotacaoContent() {
                             <div className="flex items-center gap-2">
                               <div className="relative flex-1 xs:flex-none">
                                 <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-slate-400" />
-                                <Input
+                                <CurrencyInput
                                   value={item.valorEditavel}
-                                  onChange={(e) => atualizarValor(item.id, e.target.value)}
+                                  onChange={(value) => atualizarValor(item.id, value)}
                                   placeholder="0,00"
-                                  className="pl-8 sm:pl-10 xs:w-28 sm:w-32 text-right text-xs sm:text-sm h-9"
-                                  inputMode="decimal"
+                                  className="pl-8 sm:pl-10 xs:w-28 sm:w-32 text-xs sm:text-sm h-9"
                                 />
                               </div>
                               <Button
