@@ -545,9 +545,15 @@ function CotacaoContent() {
   // Função para limpar todos os campos e restaurar valores originais
   const limparCamposERestaurar = () => {
     // Restaurar valores originais do financiamento (dos searchParams)
-    setValorFinanciadoAtual(valorFinanciado)
-    setPrimeiraPrestacaoAtual(primeiraPrestacao)
-    setUltimaPrestacaoAtual(ultimaPrestacao)
+    // Usando valores numéricos originais e strings formatadas originais
+    const valorFinanciadoOriginal = parseFloat(searchParams.get('valorFinanciado') || '0')
+    const primeiraPrestacaoOriginal = searchParams.get('primeiraPrestacao') || ''
+    const ultimaPrestacaoOriginal = searchParams.get('ultimaPrestacao') || ''
+
+    // Atualizar estados com valores originais
+    setValorFinanciadoAtual(valorFinanciadoOriginal)
+    setPrimeiraPrestacaoAtual(primeiraPrestacaoOriginal)
+    setUltimaPrestacaoAtual(ultimaPrestacaoOriginal)
 
     // Resetar estados de controle
     setFinanciamentoAtualizado(false)
@@ -560,7 +566,7 @@ function CotacaoContent() {
       {
         id: 'financiamento',
         tipo: 'Financiamento',
-        valor: valorFinanciado,
+        valor: valorFinanciadoOriginal,
         valorEditavel: '',
         editavel: false,
         icon: <Building2 className="w-4 h-4 text-blue-600" />,
@@ -569,11 +575,12 @@ function CotacaoContent() {
       }
     ]
 
-    if (bonusConstrutora > 0) {
+    const bonusOriginal = parseFloat(searchParams.get('bonusConstrutora') || '0')
+    if (bonusOriginal > 0) {
       fluxoInicial.push({
         id: 'bonus',
         tipo: 'Bônus Construtora',
-        valor: bonusConstrutora,
+        valor: bonusOriginal,
         valorEditavel: '',
         editavel: false,
         icon: <PiggyBank className="w-4 h-4 text-amber-600" />,
@@ -1280,7 +1287,7 @@ function CotacaoContent() {
                         {/* Comprometimento de Renda */}
                         {(() => {
                           const rendaNum = parseBrazilianCurrency(renda)
-                          const prestacaoFinanciamento = parseBrazilianCurrency(primeiraPrestacao)
+                          const prestacaoFinanciamento = parseBrazilianCurrency(primeiraPrestacaoAtual)
                           const parcelaProSoluto = proSolutoDetalhes.parcelaMensal
                           const totalParcelas = prestacaoFinanciamento + parcelaProSoluto
                           const percentual = rendaNum > 0 ? (totalParcelas / rendaNum) * 100 : 0
