@@ -149,8 +149,17 @@ function SimuladorCaixaContent() {
       return
     }
 
-    const entradaNum = entradaCustomizada ? parseFloat(entradaCustomizada.replace(/[R$\s.]/g, '').replace(',', '.')) : null
-    const valorImovelNum = parseFloat(valorImovel.replace(/[R$\s.]/g, '').replace(',', '.'))
+    // CurrencyInput already returns clean numeric strings (e.g., "1000" or "1000.5")
+    // Just parse directly - no need for complex formatting removal
+    const entradaNum = entradaCustomizada ? parseFloat(entradaCustomizada) : null
+    const valorImovelNum = parseFloat(valorImovel)
+    const rendaNum = parseFloat(renda)
+    
+    if (isNaN(valorImovelNum) || isNaN(rendaNum)) {
+      setError('Valores inválidos para renda ou valor do imóvel.')
+      return
+    }
+    
     if (entradaNum !== null && (valorImovelNum - entradaNum) < 100000) {
       setError('O valor a ser financiado deve ser de no mínimo R$ 100.000,00. Aumente o valor financiado ou reduza a entrada.')
       return
