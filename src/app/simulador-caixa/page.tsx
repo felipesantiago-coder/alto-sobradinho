@@ -24,7 +24,8 @@ import {
   TrendingUp,
   Building2,
   ArrowLeft,
-  FileText
+  FileText,
+  Settings
 } from 'lucide-react'
 import { ThemeToggleSimple } from '@/components/theme-toggle-simple'
 
@@ -77,6 +78,8 @@ function SimuladorCaixaContent() {
   const [renda, setRenda] = useState('')
   const [dataNascimento, setDataNascimento] = useState('')
   const [sistemaAmortizacao, setSistemaAmortizacao] = useState('PRICE TR')
+  const [prazoCustomizado, setPrazoCustomizado] = useState('')
+  const [entradaCustomizada, setEntradaCustomizada] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [resultados, setResultados] = useState<SimulacaoResult | null>(null)
@@ -138,13 +141,34 @@ function SimuladorCaixaContent() {
       return
     }
 
+    // Validações locais
+    const prazoNum = prazoCustomizado ? parseInt(prazoCustomizado) : null
+    if (prazoNum !== null && prazoNum < 120) {
+      setError('O prazo customizado deve ser de no mínimo 120 meses (10 anos).')
+      return
+    }
+
+    const entradaNum = entradaCustomizada ? parseFloat(entradaCustomizada.replace(/[R$\s.]/g, '').replace(',', '.')) : null
+    const valorImovelNum = parseFloat(valorImovel.replace(/[R$\s.]/g, '').replace(',', '.'))
+    if (entradaNum !== null && (valorImovelNum - entradaNum) < 100000) {
+      setError('O valor a ser financiado deve ser de no mínimo R$ 100.000,00. Aumente o valor financiado ou reduza a entrada.')
+      return
+    }
+
     setLoading(true)
 
     try {
       const response = await fetch('/api/simulacao', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ renda, dataNascimento, valorImovel, sistemaAmortizacao })
+        body: JSON.stringify({ 
+          renda, 
+          dataNascimento, 
+          valorImovel, 
+          sistemaAmortizacao,
+          prazoCustomizado: prazoNum || undefined,
+          entradaCustomizada: entradaNum || undefined
+        })
       })
 
       const data = await response.json()
@@ -313,6 +337,55 @@ function SimuladorCaixaContent() {
                       <SelectItem value="PRICE TR">PRICE TR (Prestações Fixas)</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Opções Avançadas */}
+            <Card className="shadow-md border-0 bg-white/80 backdrop-blur dark:bg-slate-800/80">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Settings className="w-5 h-5 text-blue-600" />
+                  Opções Avançadas
+                  <span className="text-xs font-normal text-muted-foreground">(opcional)</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="prazoCustomizado">Prazo Customizado (meses)</Label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Input
+                      id="prazoCustomizado"
+                      type="number"
+                      placeholder="Ex: 240"
+                      value={prazoCustomizado}
+                      onChange={(e) => setPrazoCustomizado(e.target.value)}
+                      disabled={loading}
+                      min={120}
+                      className="pl-10"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Mínimo: 120 meses (10 anos). Deixe em branco para usar o prazo máximo.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="entradaCustomizada">Entrada Customizada (R$)</Label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Input
+                      id="entradaCustomizada"
+                      placeholder="Ex: 150000"
+                      value={entradaCustomizada}
+                      onChange={(e) => setEntradaCustomizada(e.target.value)}
+                      disabled={loading}
+                      className="pl-10"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    O valor financiado deve ser no mínimo R$ 100.000,00. Deixe em branco para entrada mínima.
+                  </p>
                 </div>
               </CardContent>
             </Card>
