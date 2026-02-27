@@ -265,11 +265,11 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label>Valor de Venda</Label>
-                <Input type="number" value={saleValue} onChange={(e) => setSaleValue(e.target.value)} />
+                <Input type="number" value={saleValue} onChange={(e) => setSaleValue(e.target.value)} inputMode="decimal" />
               </div>
               <div className="space-y-2">
                 <Label>Desconto (Opcional)</Label>
-                <Input type="number" value={discountValue} onChange={(e) => setDiscountValue(e.target.value)} />
+                <Input type="number" value={discountValue} onChange={(e) => setDiscountValue(e.target.value)} inputMode="decimal" />
               </div>
               <div className="space-y-2">
                 <Label>Captação na Obra (%)</Label>
@@ -293,7 +293,7 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label>Sinal Ato (Mínimo 10%)</Label>
-                <Input type="number" value={downPayment} onChange={(e) => { setDownPayment(e.target.value); setIsEditingSinal(true) }} onBlur={() => setIsEditingSinal(false)} />
+                <Input type="number" value={downPayment} onChange={(e) => { setDownPayment(e.target.value); setIsEditingSinal(true) }} onBlur={() => setIsEditingSinal(false)} inputMode="decimal" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -417,7 +417,7 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
                 </div>
                 
                 <div className="mt-3 text-xs text-blue-600 dark:text-blue-400">
-                  Este saldo será financiado em 120 parcelas com taxa IPCA + 1% a.m.
+                  Este saldo será financiado em 120 parcelas com taxa IPCA + 1% a.a.
                 </div>
               </div>
             </div>
