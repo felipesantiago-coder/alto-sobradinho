@@ -793,7 +793,6 @@ export async function POST(request: NextRequest) {
     // Fator MIP: usar IDADE ATUAL (validado em múltiplas simulações oficiais Caixa)
     const fatorMIP = obterFatorMIP(idadeAnos)
 
-    const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
     const formatarPrazo = (meses: number) => {
       const anos = Math.floor(meses / 12)
       const mesesRestantes = meses % 12
