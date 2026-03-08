@@ -647,7 +647,7 @@ export const ALTO_DO_HORIZONTE: Unidade[] = [
   { id: 287, unidade: "D-404", andar: 4, areaPrivativa: "59,86 m²", tipologia: "2Q", posicaoSol: "Nascente", vaga: 1, valorAvaliacao: "R$ 530000,00", valorVenda: "R$ 511194,00", disponibilidade: "Vendida" },
   { id: 288, unidade: "D-405", andar: 4, areaPrivativa: "59,86 m²", tipologia: "2Q", posicaoSol: "Poente", vaga: 1, valorAvaliacao: "R$ 530000,00", valorVenda: "R$ 501919,35", disponibilidade: "Vendida" },
   { id: 289, unidade: "D-406", andar: 4, areaPrivativa: "59,86 m²", tipologia: "2Q", posicaoSol: "Nascente", vaga: 1, valorAvaliacao: "R$ 530000,00", valorVenda: "R$ 511194,00", disponibilidade: "Vendida" },
-  { id: 290, unidade: "D-407", andar: 4, areaPrivativa: "72,80 m²", tipologia: "3Q", posicaoSol: "Poente", vaga: 2, valorAvaliacao: "R$ 685000,00", valorVenda: "R$ 635949,48", disponibilidade: "Mirror" },
+  { id: 290, unidade: "D-407", andar: 4, areaPrivativa: "72,80 m²", tipologia: "3Q", posicaoSol: "Poente", vaga: 2, valorAvaliacao: "R$ 685000,00", valorVenda: "R$ 635949,48", disponibilidade: "Reservada aguardando revisão de proposta" },
   { id: 291, unidade: "D-408", andar: 4, areaPrivativa: "72,80 m²", tipologia: "3Q", posicaoSol: "Nascente", vaga: 2, valorAvaliacao: "R$ 685000,00", valorVenda: "R$ 659249,48", disponibilidade: "Vendida" },
   { id: 292, unidade: "D-501", andar: 5, areaPrivativa: "72,80 m²", tipologia: "3Q", posicaoSol: "Poente", vaga: 2, valorAvaliacao: "R$ 690000,00", valorVenda: "R$ 653663,16", disponibilidade: "Vendida" },
   { id: 293, unidade: "D-502", andar: 5, areaPrivativa: "72,80 m²", tipologia: "3Q", posicaoSol: "Nascente", vaga: 2, valorAvaliacao: "R$ 690000,00", valorVenda: "R$ 664149,16", disponibilidade: "Vendida" },
