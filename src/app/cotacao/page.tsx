@@ -701,9 +701,12 @@ function CotacaoContent() {
     setRecalculando(true)
 
     try {
-      // Novo valor financiado = valor atual - excedente
-      const novoValorFinanciado = valorFinanciadoAtual - excedenteEntrada
+      // Nova entrada = entrada original + excedente
+      const entradaOriginal = valorImovelParaCalculo - valorFinanciadoAtual
+      const novaEntrada = entradaOriginal + excedenteEntrada
 
+      // Chamar a API com a nova entrada customizada
+      // A API vai recalcular tudo corretamente: prazo, seguro MIP, prestação, etc.
       const response = await fetch('/api/simulacao', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -711,30 +714,34 @@ function CotacaoContent() {
           renda,
           dataNascimento,
           valorImovel: valorImovelParaCalculo,
-          sistemaAmortizacao
+          sistemaAmortizacao,
+          prazoCustomizado: prazoAmortizacao || undefined, // Manter o mesmo prazo
+          entradaCustomizada: novaEntrada // Passar a nova entrada
         })
       })
 
       const data = await response.json()
 
       if (data.sucesso) {
-        // Extrair valores numéricos
+        // Extrair valores numéricos da resposta da API
         const parseCurrencyString = (str: string): number => {
           const limpo = str.replace(/[R$\s.]/g, '').replace(',', '.')
           return parseFloat(limpo) || 0
         }
 
-        // Calcular nova prestação proporcional ao novo valor financiado
-        const vfOriginal = parseCurrencyString(data.dados.Valor_Total_Financiado)
-        const prestacaoOriginal = parseCurrencyString(data.dados.Primeira_Prestacao)
-        const fatorProporcao = novoValorFinanciado / vfOriginal
-        const novaPrestacao = prestacaoOriginal * fatorProporcao
+        // Usar os valores calculados pela API (já com seguro MIP, juros, etc.)
+        const novoValorFinanciado = parseCurrencyString(data.dados.Valor_Total_Financiado)
+        const novaPrestacao = parseCurrencyString(data.dados.Primeira_Prestacao)
+        const ultimaPrestacaoApi = parseCurrencyString(data.dados.Ultima_Prestacao)
 
         setNovaSimulacao({
           valorFinanciado: novoValorFinanciado,
           primeiraPrestacao: novaPrestacao,
-          ultimaPrestacao: sistemaAmortizacao.includes('SAC') ? novaPrestacao * 0.3 : novaPrestacao
+          ultimaPrestacao: ultimaPrestacaoApi
         })
+      } else {
+        // Se a API retornar erro, mostrar mensagem
+        console.error('Erro na simulação:', data.error)
       }
     } catch (error) {
       console.error('Erro ao recalcular financiamento:', error)
