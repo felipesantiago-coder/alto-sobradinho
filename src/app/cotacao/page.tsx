@@ -155,6 +155,7 @@ function CotacaoContent() {
   const valorVenda = parseFloat(searchParams.get('valorVenda') || '0')
   const valorAvaliacao = parseFloat(searchParams.get('valorAvaliacao') || '0')
   const bonusConstrutora = parseFloat(searchParams.get('bonusConstrutora') || '0')
+  const unidadeId = searchParams.get('unidadeId') || ''
 
   // Dados da simulação
   const valorFinanciado = parseFloat(searchParams.get('valorFinanciado') || '0')

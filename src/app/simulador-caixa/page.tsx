@@ -73,6 +73,7 @@ function SimuladorCaixaContent() {
   const tipologiaParam = searchParams.get('tipologia') || ''
   const areaParam = searchParams.get('area') || ''
   const empreendimentoParam = searchParams.get('empreendimento') || ''
+  const unidadeIdParam = searchParams.get('unidadeId') || ''
 
   // Valor do imóvel para simulação = valor de avaliação
   const [valorImovel, setValorImovel] = useState(valorAvaliacaoParam || '')
@@ -127,7 +128,8 @@ function SimuladorCaixaContent() {
       ultimaPrestacao: resultados.dados.Ultima_Prestacao,
       percentualEntrada: resultados.dados.Percentual_Entrada,
       renda: renda,
-      dataNascimento: dataNascimento
+      dataNascimento: dataNascimento,
+      unidadeId: unidadeIdParam
     })
 
     router.push(`/cotacao?${params.toString()}`)
