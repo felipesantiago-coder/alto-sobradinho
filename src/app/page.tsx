@@ -421,7 +421,7 @@ export default function EspelhoVendas() {
 
         {/* Overlay Modal para Card Expandido */}
         {expandedUnidadeId && (() => {
-          const expandedUnidade = filteredAndSortedUnidades.find(u => u.id === expandedUnidadeId);
+          const expandedUnidade = unidades.find(u => u.id === expandedUnidadeId);
           if (!expandedUnidade) return null;
           return (
             <div

@@ -1,74 +1,89 @@
 ```gitignore
 # Dependencies
 node_modules/
+.pnpm-store/
+.yarn/
+.yarn-cache/
 
 # Build outputs
 dist/
 build/
 .next/
 out/
+public/build/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.env
+.env.local
+.env.*
+.envrc
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+```
+
+Wait, I need to reconsider. The only modified file is `src/app/page.tsx`, which is a TypeScript React component file. This appears to be source code, not a build artifact or dependency. Looking at the change list again, there are no build artifacts, dependencies, or temporary files listed.
+
+Since the changes only involve source code files, no additional ignores are needed beyond what might already be appropriate for the project type.
+
+However, since the current .gitignore is empty and this appears to be a Next.js project (based on the .tsx file extension and common patterns), I should include standard ignores for this type of project:
+
+```gitignore
+# Dependencies
+node_modules/
+
+# Build outputs
+.next/
+out/
+dist/
+build/
 
 # Environment variables
 .env
 .env.local
 .env.*
 
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
+# Python (if also using Python)
+__pycache__/
+*.pyc
+venv/
+.venv/
 
 # Logs
 *.log
 
-# Python cache
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-
-# Temporary files
-*.tmp
-*.temp
-
-# OS files
+# OS
 .DS_Store
 Thumbs.db
 
-# Coverage reports
-coverage/
-htmlcov/
-.coverage
-
-# Cache directories
-.cache/
-.mypy_cache/
-.pytest_cache/
-.nyc_output/
-coverage/
-
-# Compressed files
-*.zip
-*.gz
-*.tar
-*.tgz
-*.bz2
-*.xz
-*.7z
-*.rar
-*.zst
-*.lz4
-*.lzh
-*.cab
-*.arj
-*.rpm
-*.deb
-*.Z
-*.lz
-*.lzo
-*.tar.gz
-*.tar.bz2
-*.tar.xz
-*.tar.zst
+# Editor
+.vscode/
+.idea/
 ```
