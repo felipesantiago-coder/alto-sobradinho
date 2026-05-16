@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Calculator, AlertCircle, Building2, Wallet, TrendingUp, Clock } from 'lucide-react'
+import { ArrowLeft, Calculator, AlertCircle, Building2, Wallet, TrendingUp, Clock, Plus, X } from 'lucide-react'
 import Link from 'next/link'
 import { ThemeToggleSimple } from '@/components/theme-toggle-simple'
 
@@ -21,12 +21,22 @@ const deliveryDates: Record<string, Date> = {
 interface ScheduleRow {
   mes: number | string
   data: string
-  tipo: 'sinal' | 'mensal' | 'pos-obra'
+  tipo: 'sinal' | 'mensal' | 'anual' | 'semestral' | 'pos-obra'
   mensal?: number
   intermediaria?: number
+  anual?: number
+  semestral?: number
   total: number
   saldo: number
   periodo?: 'obra' | 'entrega' | 'pos-obra'
+}
+
+// Interface para pagamentos extras (anuais/semestrais)
+interface ExtraPayment {
+  id: string
+  tipo: 'anual' | 'semestral'
+  data: string
+  valor: number
 }
 
 export default function SimuladorPage({ params }: { params: { unidade: string } }) {
@@ -45,11 +55,15 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
   const [summaryValues, setSummaryValues] = useState({
     nominalMensalSum: 0, nominalInterSum: 0, correctedMensalSum: 0, correctedInterSum: 0,
     nominalTotalConstruction: 0, correctedTotalConstruction: 0, baseMensalValue: 0, baseInterValue: 0,
-    nominalPostDeliveryBalance: 0, correctedPostDeliveryBalance: 0, sinalAto: 0
+    nominalPostDeliveryBalance: 0, correctedPostDeliveryBalance: 0, sinalAto: 0,
+    nominalAnualSum: 0, nominalSemestralSum: 0, correctedAnualSum: 0, correctedSemestralSum: 0
   })
   const [intermediariaCustomizada, setIntermediariaCustomizada] = useState(false)
   const [mensalCustomizada, setMensalCustomizada] = useState(false)
   const [isEditingSinal, setIsEditingSinal] = useState(false)
+  const [extraPayments, setExtraPayments] = useState<ExtraPayment[]>([])
+  const [showExtraPaymentsForm, setShowExtraPaymentsForm] = useState(false)
+  const [newExtraPayment, setNewExtraPayment] = useState<{ tipo: 'anual' | 'semestral', data: string, valor: string }>({ tipo: 'anual', data: '', valor: '' })
 
   useEffect(() => {
     setIsClient(true)
@@ -93,40 +107,76 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
     const defaultInterBaseValue = finalValue * 0.04
     const MIN_MENSAL = 1000
 
+    // Calcular totais de pagamentos extras (anuais e semestrais)
+    let totalExtraPaymentsNominal = 0
+    let totalExtraPaymentsCorrected = 0
+    
+    extraPayments.forEach(payment => {
+      const paymentDate = new Date(payment.data + 'T00:00:00')
+      const monthsFromToday = getMonthsDifference(today, paymentDate)
+      if (monthsFromToday >= 0 && monthsFromToday <= monthsToDelivery) {
+        const correctedValue = payment.valor * Math.pow(1 + monthlyIncc, monthsFromToday)
+        totalExtraPaymentsNominal += payment.valor
+        totalExtraPaymentsCorrected += correctedValue
+      }
+    })
+
     let baseInterValue = defaultInterBaseValue
     let baseMensalValue = 0
     const finalDownPayment = parseFloat(downPayment) || 0
 
     if (intermediariaCustomizada) {
       baseInterValue = parseFloat(customIntermediaria) || 0
-      const remainingForMensais = nominalCaptureTarget - finalDownPayment - (baseInterValue * intermediarias.length)
+      const remainingForMensais = nominalCaptureTarget - finalDownPayment - (baseInterValue * intermediarias.length) - totalExtraPaymentsNominal
       baseMensalValue = Math.max(MIN_MENSAL, remainingForMensais / monthsToDelivery)
     } else if (mensalCustomizada) {
       baseMensalValue = Math.max(MIN_MENSAL, parseFloat(customMensal) || 0)
       if (!intermediariaCustomizada) baseInterValue = defaultInterBaseValue
     } else {
-      const remainingForMensais = nominalCaptureTarget - finalDownPayment - (baseInterValue * intermediarias.length)
+      const remainingForMensais = nominalCaptureTarget - finalDownPayment - (baseInterValue * intermediarias.length) - totalExtraPaymentsNominal
       baseMensalValue = Math.max(MIN_MENSAL, remainingForMensais / monthsToDelivery)
     }
 
     const nominalMensalSum = baseMensalValue * monthsToDelivery
     const nominalInterSum = baseInterValue * intermediarias.length
-    const nominalTotalConstruction = finalDownPayment + nominalMensalSum + nominalInterSum
+    const nominalTotalConstruction = finalDownPayment + nominalMensalSum + nominalInterSum + totalExtraPaymentsNominal
 
     const correctedMensalSum = baseMensalValue * (Math.pow(1 + monthlyIncc, monthsToDelivery) - 1) / monthlyIncc
     const correctedInterSum = intermediarias.reduce((s, m) => s + baseInterValue * Math.pow(1 + monthlyIncc, m), 0)
-    const correctedTotalConstruction = finalDownPayment + correctedMensalSum + correctedInterSum
+    const correctedTotalConstruction = finalDownPayment + correctedMensalSum + correctedInterSum + totalExtraPaymentsCorrected
+
+    // Separar anuais e semestrais
+    let nominalAnualSum = 0
+    let nominalSemestralSum = 0
+    let correctedAnualSum = 0
+    let correctedSemestralSum = 0
+    
+    extraPayments.forEach(payment => {
+      const paymentDate = new Date(payment.data + 'T00:00:00')
+      const monthsFromToday = getMonthsDifference(today, paymentDate)
+      if (monthsFromToday >= 0 && monthsFromToday <= monthsToDelivery) {
+        const correctedValue = payment.valor * Math.pow(1 + monthlyIncc, monthsFromToday)
+        if (payment.tipo === 'anual') {
+          nominalAnualSum += payment.valor
+          correctedAnualSum += correctedValue
+        } else {
+          nominalSemestralSum += payment.valor
+          correctedSemestralSum += correctedValue
+        }
+      }
+    })
 
     setSummaryValues({
       nominalMensalSum, nominalInterSum, correctedMensalSum, correctedInterSum,
       nominalTotalConstruction, correctedTotalConstruction, baseMensalValue, baseInterValue,
-      nominalPostDeliveryBalance: 0, correctedPostDeliveryBalance: 0, sinalAto: finalDownPayment
+      nominalPostDeliveryBalance: 0, correctedPostDeliveryBalance: 0, sinalAto: finalDownPayment,
+      nominalAnualSum, nominalSemestralSum, correctedAnualSum, correctedSemestralSum
     })
 
     const minSinal = finalValue * 0.10
     setSinalWarning(finalDownPayment < minSinal ? `Sinal mínimo: ${formatCurrency(minSinal)} (10%)` : '')
 
-    generateTable(baseMensalValue, baseInterValue, monthlyIncc, intermediarias, deliveryDateObj, finalValue, finalDownPayment)
+    generateTable(baseMensalValue, baseInterValue, monthlyIncc, intermediarias, deliveryDateObj, finalValue, finalDownPayment, extraPayments)
   }
 
   // Helper para obter data formatada no dia 20 de um mês
@@ -135,7 +185,7 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
     return data.toLocaleDateString('pt-BR')
   }
 
-  function generateTable(baseMensalValue: number, baseInterValue: number, monthlyIncc: number, intermediarias: number[], deliveryDateObj: Date, finalValue: number, finalDownPayment: number) {
+  function generateTable(baseMensalValue: number, baseInterValue: number, monthlyIncc: number, intermediarias: number[], deliveryDateObj: Date, finalValue: number, finalDownPayment: number, extraPaymentsList: ExtraPayment[]) {
     const newSchedule: ScheduleRow[] = []
     let currentBalance = finalValue
     const today = new Date()
@@ -153,6 +203,19 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
 
     const monthsToDelivery = getMonthsDifference(today, deliveryDateObj)
 
+    // Criar mapa de pagamentos extras por mês
+    const extraPaymentsByMonth = new Map<number, ExtraPayment[]>()
+    extraPaymentsList.forEach(payment => {
+      const paymentDate = new Date(payment.data + 'T00:00:00')
+      const monthsFromToday = getMonthsDifference(today, paymentDate)
+      if (monthsFromToday >= 1 && monthsFromToday <= monthsToDelivery) {
+        if (!extraPaymentsByMonth.has(monthsFromToday)) {
+          extraPaymentsByMonth.set(monthsFromToday, [])
+        }
+        extraPaymentsByMonth.get(monthsFromToday)!.push(payment)
+      }
+    })
+
     // Parcelas mensais durante a obra - sempre dia 20
     for (let i = 1; i <= monthsToDelivery; i++) {
       currentBalance += currentBalance * monthlyIncc
@@ -168,7 +231,24 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
         currentBalance -= interPmt
       }
       
-      const totalPmt = currentMensalPmt + interPmt
+      // Verificar se há pagamentos extras neste mês
+      const monthExtras = extraPaymentsByMonth.get(i) || []
+      let extrasTotal = 0
+      let anualValue = 0
+      let semestralValue = 0
+      
+      monthExtras.forEach(extra => {
+        const correctedExtra = extra.valor * Math.pow(1 + monthlyIncc, i)
+        extrasTotal += correctedExtra
+        currentBalance -= correctedExtra
+        if (extra.tipo === 'anual') {
+          anualValue += correctedExtra
+        } else {
+          semestralValue += correctedExtra
+        }
+      })
+      
+      const totalPmt = currentMensalPmt + interPmt + extrasTotal
       
       newSchedule.push({ 
         mes: i, 
@@ -176,6 +256,8 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
         tipo: 'mensal',
         mensal: currentMensalPmt,
         intermediaria: hasIntermediaria ? interPmt : undefined,
+        anual: anualValue > 0 ? anualValue : undefined,
+        semestral: semestralValue > 0 ? semestralValue : undefined,
         total: totalPmt, 
         saldo: currentBalance, 
         periodo: 'obra' 
@@ -220,15 +302,18 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
 
   useEffect(() => {
     if (saleValue && deliveryDate && !isEditingSinal) calculate()
-  }, [saleValue, discountValue, capturePct, deliveryDate, inccRate, ipcaRate, customIntermediaria, customMensal, isEditingSinal])
+  }, [saleValue, discountValue, capturePct, deliveryDate, inccRate, ipcaRate, customIntermediaria, customMensal, isEditingSinal, extraPayments])
 
   if (!isClient) return null
 
   const finalValue = (parseFloat(saleValue) || 0) - (parseFloat(discountValue) || 0)
   
-  // Calcular captação total durante obra
-  const captacaoObraNominal = summaryValues.sinalAto + summaryValues.nominalMensalSum + summaryValues.nominalInterSum
-  const captacaoObraCorrigida = summaryValues.sinalAto + summaryValues.correctedMensalSum + summaryValues.correctedInterSum
+  // Calcular captação total durante obra (incluindo anuais e semestrais)
+  const captacaoObraNominal = summaryValues.sinalAto + summaryValues.nominalMensalSum + summaryValues.nominalInterSum + summaryValues.nominalAnualSum + summaryValues.nominalSemestralSum
+  const captacaoObraCorrigida = summaryValues.sinalAto + summaryValues.correctedMensalSum + summaryValues.correctedInterSum + summaryValues.correctedAnualSum + summaryValues.correctedSemestralSum
+  
+  // Porcentagem de captação durante as obras
+  const captacaoPercentage = finalValue > 0 ? ((captacaoObraCorrigida / finalValue) * 100).toFixed(1) : '0'
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900 dark:to-slate-800">
@@ -302,6 +387,99 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
                   placeholder="0,00"
                 />
               </div>
+              
+              {/* Seção de Pagamentos Personalizados */}
+              <div className="space-y-3 pt-3 border-t border-border">
+                <div className="flex items-center justify-between">
+                  <Label className="text-base font-semibold">Pagamentos Personalizados</Label>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setShowExtraPaymentsForm(!showExtraPaymentsForm)}
+                    className="gap-2"
+                  >
+                    {showExtraPaymentsForm ? 'Ocultar' : 'Adicionar'}
+                  </Button>
+                </div>
+                
+                {showExtraPaymentsForm && (
+                  <div className="space-y-3 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border border-border">
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Tipo</Label>
+                        <Select 
+                          value={newExtraPayment.tipo} 
+                          onValueChange={(v: 'anual' | 'semestral') => setNewExtraPayment(prev => ({ ...prev, tipo: v }))}
+                        >
+                          <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="anual">Anual</SelectItem>
+                            <SelectItem value="semestral">Semestral</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Data</Label>
+                        <Input 
+                          type="date" 
+                          className="h-8"
+                          value={newExtraPayment.data} 
+                          onChange={(e) => setNewExtraPayment(prev => ({ ...prev, data: e.target.value }))} 
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Valor</Label>
+                        <CurrencyInput 
+                          value={newExtraPayment.valor} 
+                          onChange={(value) => setNewExtraPayment(prev => ({ ...prev, valor: value }))} 
+                          placeholder="0,00"
+                          className="h-8"
+                        />
+                      </div>
+                    </div>
+                    <Button 
+                      className="w-full" 
+                      size="sm"
+                      onClick={() => {
+                        if (newExtraPayment.data && newExtraPayment.valor && parseFloat(newExtraPayment.valor) > 0) {
+                          setExtraPayments(prev => [...prev, { 
+                            id: Date.now().toString(), 
+                            tipo: newExtraPayment.tipo, 
+                            data: newExtraPayment.data, 
+                            valor: parseFloat(newExtraPayment.valor) 
+                          }])
+                          setNewExtraPayment({ tipo: 'anual', data: '', valor: '' })
+                        }
+                      }}
+                    >
+                      Adicionar Pagamento
+                    </Button>
+                  </div>
+                )}
+                
+                {/* Lista de pagamentos extras */}
+                {extraPayments.length > 0 && (
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Pagamentos Adicionados:</Label>
+                    <div className="max-h-32 overflow-y-auto space-y-1">
+                      {extraPayments.map((payment, idx) => (
+                        <div key={payment.id} className="flex items-center justify-between text-sm p-2 bg-slate-100 dark:bg-slate-800 rounded">
+                          <span className="capitalize">{payment.tipo} - {new Date(payment.data + 'T00:00:00').toLocaleDateString('pt-BR')} - {formatCurrency(payment.valor)}</span>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                            onClick={() => setExtraPayments(prev => prev.filter(p => p.id !== payment.id))}
+                          >
+                            ×
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>INCC (Obra)</Label>
@@ -377,7 +555,15 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
                   </div>
                   <div>
                     <h4 className="font-semibold text-amber-800 dark:text-amber-200">Captação Durante a Obra</h4>
-                    <p className="text-xs text-amber-600 dark:text-amber-400">Mensais + Intermediárias</p>
+                    <p className="text-xs text-amber-600 dark:text-amber-400">Mensais + Intermediárias + Extras</p>
+                  </div>
+                </div>
+                
+                {/* Porcentagem de captação - destaque */}
+                <div className="mb-4 bg-amber-200/50 dark:bg-amber-800/30 p-3 rounded-lg">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-amber-800 dark:text-amber-200">Porcentagem Captada na Obra:</span>
+                    <span className="text-2xl font-bold text-amber-900 dark:text-amber-100">{captacaoPercentage}%</span>
                   </div>
                 </div>
                 
@@ -390,6 +576,18 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
                     <span className="text-sm text-amber-700 dark:text-amber-300">Valor Corrigido (INCC):</span>
                     <span className="font-bold text-lg text-amber-900 dark:text-amber-100">{formatCurrency(captacaoObraCorrigida - summaryValues.sinalAto)}</span>
                   </div>
+                  {summaryValues.nominalAnualSum > 0 && (
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-amber-700 dark:text-amber-300">• Anuais:</span>
+                      <span className="font-medium text-amber-800 dark:text-amber-200">{formatCurrency(summaryValues.nominalAnualSum)}</span>
+                    </div>
+                  )}
+                  {summaryValues.nominalSemestralSum > 0 && (
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-amber-700 dark:text-amber-300">• Semestrais:</span>
+                      <span className="font-medium text-amber-800 dark:text-amber-200">{formatCurrency(summaryValues.nominalSemestralSum)}</span>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="mt-3 pt-3 border-t border-amber-200 dark:border-amber-700">
