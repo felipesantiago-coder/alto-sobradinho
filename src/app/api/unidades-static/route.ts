@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   const unidades = unidadesData.slice(0, limit).map((u: Unidade) => ({
     id: String(u.id),
     unidade: u.unidade,
-    andar: u.andar,
+    andar: Number(u.andar),
     areaPrivativa: u.areaPrivativa,
     tipologia: u.tipologia,
     posicaoSol: u.posicaoSol,
