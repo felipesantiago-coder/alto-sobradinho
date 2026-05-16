@@ -128,7 +128,8 @@ type PerfilType = keyof typeof PERFIS
 // Datas de entrega por empreendimento
 const DATAS_ENTREGA: Record<string, string> = {
   'alto-da-alvorada': '2027-03-31',
-  'alto-do-horizonte': '2026-07-31'
+  'alto-do-horizonte': '2026-07-31',
+  'alto-da-aurora': '2029-02-28'
 }
 
 // Interface para os detalhes do pró-soluto

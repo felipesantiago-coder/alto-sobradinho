@@ -13,7 +13,8 @@ import { ThemeToggleSimple } from '@/components/theme-toggle-simple'
 
 const deliveryDates: Record<string, Date> = {
   'alto-da-alvorada': new Date('2027-03-31'),
-  'alto-do-horizonte': new Date('2026-07-31')
+  'alto-do-horizonte': new Date('2026-07-31'),
+  'alto-da-aurora': new Date('2029-02-28')
 }
 
 // Interface para as linhas da tabela unificada

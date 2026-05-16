@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     valorVenda: u.valorVenda,
     disponibilidade: u.disponibilidade,
     empreendimento: {
-      nome: empreendimento === 'alto-da-alvorada' ? 'Alto da Alvorada' : 'Alto do Horizonte',
+      nome: empreendimento === 'alto-da-alvorada' ? 'Alto da Alvorada' : empreendimento === 'alto-da-aurora' ? 'Alto da Aurora' : 'Alto do Horizonte',
       slug: empreendimento
     }
   }))
