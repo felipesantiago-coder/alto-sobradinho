@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     areaPrivativa: u.areaPrivativa,
     tipologia: u.tipologia,
     posicaoSol: u.posicaoSol,
-    vaga: u.vaga,
+    vaga: typeof u.vagas === 'string' ? parseInt(u.vagas, 10) : u.vagas,
     valorAvaliacao: u.valorAvaliacao,
     valorVenda: u.valorVenda,
     disponibilidade: u.disponibilidade,

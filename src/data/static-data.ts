@@ -9,11 +9,11 @@
 
 export interface Unidade {
   unidade: string;
-  andar: number;
+  andar: number | string;
   areaPrivativa: string;
   tipologia: string;
   posicaoSol: string;
-  vagas: number;
+  vagas: number | string;
   valorAvaliacao: string | number;
   valorVenda: string | number;
   disponibilidade: string;
