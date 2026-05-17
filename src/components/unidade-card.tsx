@@ -23,6 +23,7 @@ const posicaoSolColors = {
 }
 
 interface UnidadeCardProps {
+  id?: string
   unidade: string
   andar: number
   areaPrivativa: string
@@ -39,6 +40,7 @@ interface UnidadeCardProps {
 }
 
 export function UnidadeCard({
+  id,
   unidade,
   andar,
   areaPrivativa,
@@ -76,7 +78,10 @@ export function UnidadeCard({
 
       const params = new URLSearchParams({
         valorVenda: valorVendaNum,
-        empreendimento: empreendimentoSlug
+        empreendimento: empreendimentoSlug,
+        unidade: unidade,
+        tipologia: tipologia,
+        area: areaPrivativa
       })
 
       router.push(`/simulador/${unidade}?${params.toString()}`)
@@ -112,7 +117,8 @@ export function UnidadeCard({
         unidade: unidade,
         tipologia: tipologia,
         area: areaPrivativa,
-        empreendimento: empreendimentoSlug || ''
+        empreendimento: empreendimentoSlug || '',
+        unidadeId: id || ''
       })
 
       router.push(`/simulador-caixa?${params.toString()}`)

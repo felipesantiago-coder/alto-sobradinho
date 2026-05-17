@@ -398,6 +398,7 @@ export default function EspelhoVendas() {
                 {filteredAndSortedUnidades.map((unidade) => (
                   <UnidadeCard
                     key={unidade.id}
+                    id={unidade.id}
                     unidade={unidade.unidade}
                     andar={unidade.andar}
                     areaPrivativa={unidade.areaPrivativa}
@@ -420,7 +421,7 @@ export default function EspelhoVendas() {
 
         {/* Overlay Modal para Card Expandido */}
         {expandedUnidadeId && (() => {
-          const expandedUnidade = filteredAndSortedUnidades.find(u => u.id === expandedUnidadeId);
+          const expandedUnidade = unidades.find(u => u.id === expandedUnidadeId);
           if (!expandedUnidade) return null;
           return (
             <div
@@ -432,6 +433,7 @@ export default function EspelhoVendas() {
                 onClick={(e) => e.stopPropagation()}
               >
                 <UnidadeCard
+                  id={expandedUnidade.id}
                   unidade={expandedUnidade.unidade}
                   andar={expandedUnidade.andar}
                   areaPrivativa={expandedUnidade.areaPrivativa}

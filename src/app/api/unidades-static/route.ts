@@ -18,8 +18,8 @@ export async function GET(request: NextRequest) {
   }
 
   // Converter formato para o esperado pela página
-  const unidades = unidadesData.slice(0, limit).map((u: Unidade) => ({
-    id: String(u.id),
+  const unidades = unidadesData.slice(0, limit).map((u: Unidade, index: number) => ({
+    id: `${empreendimento}-${u.unidade}`.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
     unidade: u.unidade,
     andar: Number(u.andar),
     areaPrivativa: u.areaPrivativa,
