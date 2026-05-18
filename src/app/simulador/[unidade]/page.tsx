@@ -5,8 +5,8 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ThemeToggleSimple } from '@/components/theme-toggle-simple';
 import { getIBGEIndices, IBGEData } from '@/services/ibge-service';
-// Importando as funções e dados corretos do static-data.ts
-import { getUnidadesByEmpreendimento, altoDaAlvorada, altoDaAurora, altoDoHorizonte } from '@/data/static-data';
+// Importação corrigida das funções estáticas
+import { getUnidadesByEmpreendimento, getUnidadeByCode } from '@/data/static-data';
 import { Unidade } from '@/types/unidade';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,29 +17,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, TrendingUp, DollarSign, AlertCircle } from 'lucide-react';
 
-// Datas de entrega estimadas por empreendimento (slug)
+// Datas de entrega estimadas por empreendimento (slug base)
 const deliveryDates: Record<string, Date> = {
   'alto-da-alvorada': new Date('2027-03-31'),
   'alto-da-aurora': new Date('2026-12-31'),
-  'alto-do-horizonte': new Date('2027-06-30'), // Exemplo
+  'alto-do-horizonte': new Date('2027-06-30'),
 };
-
-// Mapeamento reverso: descobre o slug do empreendimento baseado na unidade
-function findUnidadeAndEmpreendimento(unitSlug: string): { unidade: Unidade; empreendimentoSlug: string } | null {
-  const empreendimentos = [
-    { slug: 'alto-da-alvorada', data: altoDaAlvorada },
-    { slug: 'alto-da-aurora', data: altoDaAurora },
-    { slug: 'alto-do-horizonte', data: altoDoHorizonte },
-  ];
-
-  for (const emp of empreendimentos) {
-    const found = emp.data.find(u => u.unidade?.trim().toLowerCase() === unitSlug.toLowerCase());
-    if (found) {
-      return { unidade: found, empreendimentoSlug: emp.slug };
-    }
-  }
-  return null;
-}
 
 interface Parcela {
   vencimento: string;
@@ -56,10 +39,9 @@ interface ResultadoSimulacao {
 
 export default function SimuladorUnidadePage() {
   const params = useParams();
-  const unitSlug = params.unidade as string; // Ex: "C-305"
+  const slugParam = params.unidade as string; // Ex: "alto-da-aurora-C-305" ou apenas o código
   
   const [unidade, setUnidade] = useState<Unidade | null>(null);
-  const [empreendimentoSlug, setEmpreendimentoSlug] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -84,17 +66,55 @@ export default function SimuladorUnidadePage() {
         setLoading(true);
         setError(null);
 
-        // Busca localmente nos dados estáticos
-        const resultado = findUnidadeAndEmpreendimento(unitSlug);
-
-        if (!resultado) {
-          throw new Error('Unidade não encontrada em nenhum empreendimento.');
+        if (!slugParam) {
+          throw new Error('Nenhuma unidade especificada na URL.');
         }
 
-        const { unidade: unidadeEncontrada, empreendimentoSlug: empSlug } = resultado;
+        // Lógica para separar o slug do empreendimento e o código da unidade
+        // Assumindo formato: "nome-do-empreendimento-CODIGO" ou apenas "CODIGO" se o contexto vier de outro lugar
+        // Vamos tentar encontrar a unidade em todos os empreendimentos se o formato não for claro
         
+        let unidadeEncontrada: Unidade | undefined;
+        let empreendimentoSlug = '';
+
+        // Tenta identificar o empreendimento pelo prefixo comum nos slugs
+        const slugsConhecidos = ['alto-da-alvorada', 'alto-da-aurora', 'alto-do-horizonte'];
+        const slugLower = slugParam.toLowerCase();
+
+        const slugDetectado = slugsConhecidos.find(s => slugLower.startsWith(s));
+        
+        if (slugDetectado) {
+          empreendimentoSlug = slugDetectado;
+          // O código da unidade é o restante da string após o slug e possíveis hífens/separadores
+          // Ex: alto-da-aurora-C-305 -> código "C-305"
+          const codigoParte = slugParam.substring(slugDetectado.length);
+          const unidadeCode = codigoParte.replace(/^[- ]+/, ''); // Remove hífens ou espaços iniciais
+          
+          const unidadesDoEmpreendimento = getUnidadesByEmpreendimento(empreendimentoSlug);
+          unidadeEncontrada = unidadesDoEmpreendimento.find(u => 
+            u.unidade?.trim().toLowerCase() === unidadeCode.trim().toLowerCase() || 
+            u.codigo?.toString() === unidadeCode.trim()
+          );
+        } else {
+          // Se não detectou o prefixo, busca em todos (fallback)
+          for (const slug of slugsConhecidos) {
+            const unidades = getUnidadesByEmpreendimento(slug);
+            unidadeEncontrada = unidades.find(u => 
+              u.unidade?.trim().toLowerCase() === slugParam.trim().toLowerCase() ||
+              u.codigo?.toString() === slugParam.trim()
+            );
+            if (unidadeEncontrada) {
+              empreendimentoSlug = slug;
+              break;
+            }
+          }
+        }
+
+        if (!unidadeEncontrada) {
+          throw new Error(`Unidade "${slugParam}" não encontrada.`);
+        }
+
         setUnidade(unidadeEncontrada);
-        setEmpreendimentoSlug(empSlug);
         setValorVenda(unidadeEncontrada.valorVenda || 0);
 
         // Carrega índices do IBGE
@@ -102,23 +122,37 @@ export default function SimuladorUnidadePage() {
 
       } catch (err) {
         console.error(err);
-        setError(err instanceof Error ? err.message : 'Erro ao carregar dados');
+        setError(err instanceof Error ? err.message : 'Erro ao carregar dados da unidade.');
       } finally {
         setLoading(false);
       }
     }
 
     fetchData();
-  }, [unitSlug]);
+  }, [slugParam]);
 
   // Recalcular simulação quando inputs mudarem
   useEffect(() => {
-    if (unidade && indicesData && valorVenda > 0 && empreendimentoSlug) {
+    if (unidade && indicesData && valorVenda > 0) {
       const valorFinal = valorVenda - desconto;
       const taxaAnual = obterTaxaPorPeriodo(periodoMedia, indiceSelecionado, indicesData);
       
-      const dataEntrega = deliveryDates[empreendimentoSlug] || new Date('2027-01-01');
+      // Determina a data de entrega baseada no empreendimento da unidade
+      // Precisamos descobrir o slug do empreendimento novamente ou passar isso na unidade
+      // Vamos usar uma lógica simples baseada no valor ou buscar no static data novamente se necessário
+      // Para simplificar, vamos assumir Alto da Aurora como default se não detectar, mas o ideal é ter o slug na unidade
+      let dataEntrega = new Date('2027-01-01');
       
+      // Tentativa de detectar empreendimento pela área ou valor (gambiarra segura se não tiver slug na unidade)
+      // Melhor: verificar qual lista contém esta unidade
+      if (getUnidadesByEmpreendimento('alto-da-aurora').includes(unidade)) {
+        dataEntrega = deliveryDates['alto-da-aurora'];
+      } else if (getUnidadesByEmpreendimento('alto-da-alvorada').includes(unidade)) {
+        dataEntrega = deliveryDates['alto-da-alvorada'];
+      } else if (getUnidadesByEmpreendimento('alto-do-horizonte').includes(unidade)) {
+        dataEntrega = deliveryDates['alto-do-horizonte'];
+      }
+
       const resultado = calcularSimulacaoTabelaDireta({
         valorFinal,
         percentualCaptação,
@@ -129,7 +163,7 @@ export default function SimuladorUnidadePage() {
 
       setResultadoSimulacao(resultado);
     }
-  }, [unidade, valorVenda, desconto, percentualCaptação, indiceSelecionado, periodoMedia, indicesData, empreendimentoSlug]);
+  }, [unidade, valorVenda, desconto, percentualCaptação, indiceSelecionado, periodoMedia, indicesData]);
 
   async function carregarIndices() {
     setLoadingIndices(true);
@@ -139,19 +173,20 @@ export default function SimuladorUnidadePage() {
       setIndicesData(data);
     } catch (err) {
       console.error('Erro ao carregar índices:', err);
-      setErroIndices('Não foi possível carregar os índices atualizados.');
+      setErroIndices('Não foi possível carregar os índices atualizados do IBGE. Usando estimativas.');
       // Fallback seguro
       setIndicesData({
-        incc: { media15Anos: 4.5, media12Meses: 5.0, projecao: 5.2 },
-        ipca: { media15Anos: 5.0, media12Meses: 4.8, projecao: 5.1 }
+        incc: { media15Anos: 4.85, media12Meses: 5.12, projecao: 5.20 },
+        ipca: { media15Anos: 5.40, media12Meses: 4.60, projecao: 4.75 }
       });
     } finally {
       setLoadingIndices(false);
     }
   }
 
-  function obterTaxaPorPeriodo(periodo: string, indice: 'INCC' | 'IPCA',  IBGEData): number {
-    const tipoIndice = data[indice.toLowerCase() as 'incc' | 'ipca'];
+  // CORREÇÃO: Renomeado parâmetro 'data' para 'ibgeData' para evitar conflito com variáveis globais ou escopo
+  function obterTaxaPorPeriodo(periodo: string, indice: 'INCC' | 'IPCA', ibgeData: IBGEData): number {
+    const tipoIndice = ibgeData[indice.toLowerCase() as 'incc' | 'ipca'];
     if (!tipoIndice) return 0;
 
     switch (periodo) {
@@ -171,20 +206,20 @@ export default function SimuladorUnidadePage() {
   }): ResultadoSimulacao {
     const { valorFinal, percentualCaptação, taxaAnual, dataEntrega, dataInicio } = args;
 
-    // 1. Calcular Entrada (Sinal) - 10% do valor final
+    // 1. Entrada (Sinal) = 10% do Valor Final
     const entrada = valorFinal * 0.10;
 
-    // 2. Calcular Valor Total a Captar na Obra
+    // 2. Total a captar na obra
     const valorTotalCaptação = valorFinal * (percentualCaptação / 100);
-    
     let saldoParaObras = valorTotalCaptação - entrada;
     if (saldoParaObras < 0) saldoParaObras = 0;
 
-    // 3. Calcular número de meses até a entrega
-    const mesesTotais = Math.ceil((dataEntrega.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24 * 30));
+    // 3. Meses até a entrega
+    const diffTime = Math.abs(dataEntrega.getTime() - dataInicio.getTime());
+    const mesesTotais = Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 30)); 
     const mesesObra = Math.max(1, mesesTotais);
 
-    // 4. Calcular Parcelas Mensais
+    // 4. Parcelas mensais (Divisão simples do saldo pelo prazo)
     const valorParcelaMensal = saldoParaObras / mesesObra;
 
     const parcelasObras: Parcela[] = [];
@@ -199,12 +234,12 @@ export default function SimuladorUnidadePage() {
       });
     }
 
-    const totalObras = entrada + parcelasObras.reduce((acc, p) => acc + p.valor, 0);
-    const saldoDevedor = valorFinal - totalObras;
+    const totalPagoObras = entrada + parcelasObras.reduce((acc, p) => acc + p.valor, 0);
+    const saldoDevedor = valorFinal - totalPagoObras;
 
     return {
       entrada,
-      totalObras,
+      totalObras: totalPagoObras,
       saldoDevedor: saldoDevedor > 0 ? saldoDevedor : 0,
       parcelasObras
     };
@@ -212,22 +247,28 @@ export default function SimuladorUnidadePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <p className="text-muted-foreground">Carregando simulador...</p>
+        </div>
       </div>
     );
   }
 
   if (error || !unidade) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
+      <div className="min-h-screen flex items-center justify-center p-4 bg-background">
+        <Card className="w-full max-w-md border-destructive">
           <CardHeader>
-            <CardTitle className="text-red-600">Erro</CardTitle>
+            <CardTitle className="text-destructive flex items-center gap-2">
+              <AlertCircle className="h-5 w-5" />
+              Erro ao carregar
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <p>{error || 'Unidade não encontrada.'}</p>
-            <Button asChild className="mt-4">
+            <p className="mb-4">{error || 'Unidade não encontrada.'}</p>
+            <Button asChild className="w-full">
               <Link href="/empreendimentos">Voltar aos Empreendimentos</Link>
             </Button>
           </CardContent>
@@ -358,19 +399,26 @@ export default function SimuladorUnidadePage() {
                 
                 {loadingIndices ? (
                   <p className="text-xs text-blue-500 flex items-center gap-1">
-                    <Loader2 className="h-3 w-3 animate-spin" /> Carregando dados do IBGE...
+                    <Loader2 className="h-3 w-3 animate-spin" /> Buscando dados no IBGE...
                   </p>
                 ) : erroIndices ? (
-                  <p className="text-xs text-red-500 flex items-center gap-1">
+                  <p className="text-xs text-amber-500 flex items-center gap-1">
                     <AlertCircle className="h-3 w-3" /> {erroIndices}
                   </p>
                 ) : indicesData ? (
-                  <div className="text-xs bg-muted p-2 rounded mt-2">
+                  <div className="text-xs bg-muted p-2 rounded mt-2 border">
+                    <p className="font-semibold mb-1">Dados Atualizados:</p>
                     <p><strong>Taxa Aplicada:</strong> {obterTaxaPorPeriodo(periodoMedia, indiceSelecionado, indicesData).toFixed(2)}% a.a.</p>
-                    <p className="text-muted-foreground mt-1">
-                      Média 15a: {indicesData[indiceSelecionado.toLowerCase() as 'incc'|'ipca']?.media15Anos.toFixed(2)}% | 
-                      Média 12m: {indicesData[indiceSelecionado.toLowerCase() as 'incc'|'ipca']?.media12Meses.toFixed(2)}%
-                    </p>
+                    <div className="mt-2 grid grid-cols-2 gap-2 pt-2 border-t">
+                      <div>
+                        <span className="block text-muted-foreground">Média 15a:</span>
+                        <span>{indicesData[indiceSelecionado.toLowerCase() as 'incc'|'ipca']?.media15Anos.toFixed(2)}%</span>
+                      </div>
+                      <div>
+                        <span className="block text-muted-foreground">Média 12m:</span>
+                        <span>{indicesData[indiceSelecionado.toLowerCase() as 'incc'|'ipca']?.media12Meses.toFixed(2)}%</span>
+                      </div>
+                    </div>
                   </div>
                 ) : null}
               </div>
@@ -405,7 +453,7 @@ export default function SimuladorUnidadePage() {
                   </div>
 
                   <h4 className="font-semibold mt-4 mb-2">Fluxo de Pagamentos (Obras)</h4>
-                  <div className="border rounded-md">
+                  <div className="border rounded-md max-h-[300px] overflow-y-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -427,7 +475,7 @@ export default function SimuladorUnidadePage() {
                           ))
                         ) : (
                           <TableRow>
-                            <TableCell colSpan={3} className="text-center text-muted-foreground">Nenhuma parcela calculada</TableCell>
+                            <TableCell colSpan={3} className="text-center text-muted-foreground py-4">Nenhuma parcela calculada</TableCell>
                           </TableRow>
                         )}
                       </TableBody>
@@ -446,7 +494,7 @@ export default function SimuladorUnidadePage() {
                 </div>
               ) : (
                 <div className="h-full flex items-center justify-center text-muted-foreground">
-                  Preencha os parâmetros para ver a simulação
+                  Ajuste os parâmetros para ver a simulação
                 </div>
               )}
             </CardContent>
