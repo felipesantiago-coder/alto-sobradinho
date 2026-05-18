@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ArrowLeft, Calculator, AlertCircle, Building2, Wallet, TrendingUp, Clock, Plus, X, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { ThemeToggleSimple } from '@/components/theme-toggle-simple'
-import { getIndexStats, IndexStats } from '@/services/ibge-service'
+import { getIBGEIndices } from '@/services/ibge-service'
 
 const deliveryDates: Record<string, Date> = {
   'alto-da-alvorada': new Date('2027-03-31'),
