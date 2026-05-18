@@ -1,6 +1,6 @@
 /**
  * Dados estáticos dos empreendimentos - Alto Sobradinho
- * Gerado automaticamente em 16/05/2026, 13:54:09
+ * Gerado automaticamente em 18/05/2026, 15:18:26
  * 
  * Este arquivo é consumido pelas rotas da API em:
  * - /api/empreendimentos-static
@@ -9,11 +9,11 @@
 
 export interface Unidade {
   unidade: string;
-  andar: number | string;
+  andar: number;
   areaPrivativa: string;
   tipologia: string;
   posicaoSol: string;
-  vagas: number | string;
+  vagas: number;
   valorAvaliacao: string | number;
   valorVenda: string | number;
   disponibilidade: string;
@@ -9631,7 +9631,7 @@ export const altoDaAurora: Unidade[] =   [
       "vagas": "1",
       "valorAvaliacao": "620000",
       "valorVenda": "519302",
-      "disponibilidade": "Disponível"
+      "disponibilidade": "Reservada aguardando revisão de proposta"
     },
     {
       "unidade": "C-107",
@@ -9697,7 +9697,7 @@ export const altoDaAurora: Unidade[] =   [
       "vagas": "1",
       "valorAvaliacao": "620000",
       "valorVenda": "524302",
-      "disponibilidade": "Disponível"
+      "disponibilidade": "Reservada aguardando revisão de proposta"
     },
     {
       "unidade": "C-205",
@@ -10170,7 +10170,7 @@ export const altoDaAurora: Unidade[] =   [
       "vagas": "2",
       "valorAvaliacao": "739000",
       "valorVenda": "697640",
-      "disponibilidade": "Disponível"
+      "disponibilidade": "Reservada"
     },
     {
       "unidade": "C-708",
@@ -10511,7 +10511,7 @@ export const altoDaAurora: Unidade[] =   [
       "vagas": "1",
       "valorAvaliacao": "620000",
       "valorVenda": "519302",
-      "disponibilidade": "Disponível"
+      "disponibilidade": "Reservada"
     },
     {
       "unidade": "D-105",
@@ -10555,7 +10555,7 @@ export const altoDaAurora: Unidade[] =   [
       "vagas": "1",
       "valorAvaliacao": "739000",
       "valorVenda": "607640",
-      "disponibilidade": "Disponível"
+      "disponibilidade": "Reservada"
     },
     {
       "unidade": "D-201",
@@ -10621,7 +10621,7 @@ export const altoDaAurora: Unidade[] =   [
       "vagas": "1",
       "valorAvaliacao": "620000",
       "valorVenda": "524302",
-      "disponibilidade": "Disponível"
+      "disponibilidade": "Reservada"
     },
     {
       "unidade": "D-207",
@@ -10676,7 +10676,7 @@ export const altoDaAurora: Unidade[] =   [
       "vagas": "1",
       "valorAvaliacao": "620000",
       "valorVenda": "549302",
-      "disponibilidade": "Disponível"
+      "disponibilidade": "Reservada"
     },
     {
       "unidade": "D-304",
@@ -10995,7 +10995,7 @@ export const altoDaAurora: Unidade[] =   [
       "vagas": "2",
       "valorAvaliacao": "739000",
       "valorVenda": "672640",
-      "disponibilidade": "Disponível"
+      "disponibilidade": "Reservada"
     },
     {
       "unidade": "D-701",
@@ -11028,7 +11028,7 @@ export const altoDaAurora: Unidade[] =   [
       "vagas": "1",
       "valorAvaliacao": "620000",
       "valorVenda": "569302",
-      "disponibilidade": "Disponível"
+      "disponibilidade": "Reservada"
     },
     {
       "unidade": "D-704",
@@ -11050,7 +11050,7 @@ export const altoDaAurora: Unidade[] =   [
       "vagas": "1",
       "valorAvaliacao": "620000",
       "valorVenda": "569302",
-      "disponibilidade": "Disponível"
+      "disponibilidade": "Reservada"
     },
     {
       "unidade": "D-706",
@@ -11116,7 +11116,7 @@ export const altoDaAurora: Unidade[] =   [
       "vagas": "1",
       "valorAvaliacao": "620000",
       "valorVenda": "574302",
-      "disponibilidade": "Disponível"
+      "disponibilidade": "Reservada"
     },
     {
       "unidade": "D-804",
