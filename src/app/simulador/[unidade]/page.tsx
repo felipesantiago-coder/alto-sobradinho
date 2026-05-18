@@ -5,8 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ThemeToggleSimple } from '@/components/theme-toggle-simple';
 import { getIBGEIndices, IBGEData } from '@/services/ibge-service';
-// CORREÇÃO: Importando os dados estáticos do caminho correto
-import { allUnits } from '@/data/static-data';
+import { getUnidadesByEmpreendimento } from '@/data/static-data';
 import { Unidade } from '@/types/unidade';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
