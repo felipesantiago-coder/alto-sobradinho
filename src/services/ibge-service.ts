@@ -1,175 +1,88 @@
-/**
- * Serviço para buscar índices econômicos do IBGE (INCC e IPCA)
- * Utiliza a API SIDRA do IBGE para dados reais históricos
- */
+// src/services/ibge-service.ts
 
-export interface IndexData {
-  code: string;
-  date: string;
+interface IBGEData {
+  data: string;
   value: number;
 }
 
-export interface IndexStats {
-  average15Years: number;
-  average12Months: number;
-  projection?: number;
-}
-
-const CACHE_KEY_INCC = 'ibge_incc_cache';
-const CACHE_KEY_IPCA = 'ibge_ipca_cache';
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 horas
-
-/**
- * Busca dados históricos do IBGE via API SIDRA
- * @param tableId 1737 = INCC-M, 643 = IPCA
- * @param periods Quantidade de períodos para buscar (180 = 15 anos)
- */
-async function fetchIBGEData(tableId: number, periods: number = 180): Promise<IndexData[]> {
+export async function fetchIBGEIndex(code: number): Promise<IBGEData[]> {
+  // Busca os últimos 180 períodos (15 anos) diretamente da API SIDRA
+  const url = `https://apisidra.ibge.gov.br/values/t/${code}/n/all/v/all/p/last%20180?formato=JSON`;
+  
   try {
-    // API SIDRA do IBGE - formato correto para séries históricas
-    // t=tabela, p=períodos, v=variável (63 = índice mensal), d=all (todos os períodos disponíveis)
-    const url = `https://apisidra.ibge.gov.br/values/t/${tableId}/p/${periods}/v/63/d/all?formato=json`;
-    
     const response = await fetch(url);
-    
-    if (!response.ok) {
-      throw new Error(`Erro na API IBGE: ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
     
     const data = await response.json();
     
-    // Estrutura da resposta SIDRA varia conforme tabela
-    // Para tabelas 1737 e 643, verificar estrutura real
-    if (Array.isArray(data) && data.length > 1) {
-      return data.slice(1).map((item: any) => {
-        // Tentar diferentes formatos de data e valor
-        const dateValue = item.D3C || item.D2C || item.MC || item['D1N'] || '';
-        const rawValue = item.V || item['V'] || '0';
-        
-        return {
-          code: tableId === 1737 ? 'INCC' : 'IPCA',
-          date: dateValue,
-          value: parseFloat(String(rawValue).replace(',', '.') || '0')
-        };
-      }).filter(d => d.value !== 0 && d.date !== '' && !isNaN(d.value));
+    // A API retorna um array onde o índice 0 é o cabeçalho e 1+ são os dados
+    if (!Array.isArray(data) || data.length < 2) {
+      console.warn(`Dados insuficientes para o índice ${code}`);
+      return [];
     }
-    
-    return [];
+
+    // Mapeia para o formato padrão { data, value }
+    // Ordena por data crescente para garantir consistência
+    return data.slice(1).map((item: any) => ({
+      data: item.D2C || item.MC, // Data ou Mês de coleta
+      value: parseFloat(item.V.replace(',', '.')) || 0
+    })).sort((a: IBGEData, b: IBGEData) => 
+      new Date(a.data).getTime() - new Date(b.data).getTime()
+    );
+
   } catch (error) {
-    console.warn('Falha ao buscar dados do IBGE:', error);
-    // Retorna array vazio em vez de dados mockados
-    return [];
+    console.error(`Falha ao buscar índice ${code} do IBGE:`, error);
+    // Retorna array vazio para forçar o tratamento de erro na UI, SEM MOCKS
+    return []; 
   }
 }
 
-/**
- * Calcula média anualizada geométrica a partir de dados mensais
- */
-function calculateAnnualAverage(monthlyValues: number[]): number {
-  if (monthlyValues.length === 0) return 0;
+export function calculateAnnualizedAverage(data: IBGEData[], months: number): number {
+  if (!data || data.length === 0) return 0;
   
-  // Média geométrica para taxa anualizada
-  const product = monthlyValues.reduce((acc, val) => acc * (1 + val / 100), 1);
-  const months = monthlyValues.length;
-  const annualRate = (Math.pow(product, 12 / months) - 1) * 100;
+  // Pega apenas a quantidade de meses solicitada a partir do final (mais recentes)
+  const sliceData = data.slice(-months);
   
+  if (sliceData.length === 0) return 0;
+
+  // Calcula a média geométrica para anualizar corretamente
+  // Fórmula: ((1 + r1) * (1 + r2) ... )^(12/n) - 1
+  let product = 1;
+  let count = 0;
+
+  for (const item of sliceData) {
+    // Converte taxa mensal percentual para fator (ex: 0.5% -> 1.005)
+    const factor = 1 + (item.value / 100);
+    product *= factor;
+    count++;
+  }
+
+  if (count === 0) return 0;
+
+  // Eleva à potência de (12 / meses usados) para anualizar
+  const annualFactor = Math.pow(product, 12 / count);
+  const annualRate = (annualFactor - 1) * 100;
+
   return parseFloat(annualRate.toFixed(2));
 }
 
-/**
- * Obtém estatísticas do índice com opções de período
- */
-export async function getIndexStats(index: 'INCC' | 'IPCA', deliveryDate?: Date): Promise<IndexStats> {
-  // IDs corretos das tabelas SIDRA: 1737 = INCC-M, 643 = IPCA
-  const tableId = index === 'INCC' ? 1737 : 643;
-  const cacheKey = index === 'INCC' ? CACHE_KEY_INCC : CACHE_KEY_IPCA;
-  
-  // Tentar cache primeiro
-  const cached = localStorage.getItem(cacheKey);
-  if (cached) {
-    const { data, timestamp } = JSON.parse(cached);
-    if (Date.now() - timestamp < CACHE_DURATION && data.length >= 12) {
-      return processStats(data, deliveryDate);
+export async function getIBGEIndices() {
+  // Códigos oficiais: 189 (INCC-DI), 433 (IPCA)
+  const [inccData, ipcaData] = await Promise.all([
+    fetchIBGEIndex(189),
+    fetchIBGEIndex(433)
+  ]);
+
+  return {
+    incc: {
+      full: inccData,
+      avg15y: calculateAnnualizedAverage(inccData, 180), // Média 15 anos
+      avg12m: calculateAnnualizedAverage(inccData, 12),  // Média 12 meses
+    },
+    ipca: {
+      full: ipcaData,
+      avg15y: calculateAnnualizedAverage(ipcaData, 180),
+      avg12m: calculateAnnualizedAverage(ipcaData, 12),
     }
-  }
-
-  // Buscar 180 meses (15 anos) de dados reais da API do IBGE
-  let rawData = await fetchIBGEData(tableId, 180);
-  
-  // Se não conseguiu buscar dados suficientes, tenta novamente com menos períodos
-  if (rawData.length < 12) {
-    rawData = await fetchIBGEData(tableId, 12);
-  }
-
-  // Salvar em cache se tiver dados válidos
-  if (rawData.length > 0) {
-    localStorage.setItem(cacheKey, JSON.stringify({
-      data: rawData,
-      timestamp: Date.now()
-    }));
-  }
-  
-  return processStats(rawData, deliveryDate);
-}
-
-/**
- * Processa dados brutos e calcula estatísticas para diferentes períodos
- */
-function processStats(data: IndexData[], deliveryDate?: Date): IndexStats {
-  // Valores padrão fallback APENAS se não tiver dados reais
-  // Estes valores são usados apenas como último recurso
-  const defaultStats: IndexStats = {
-    average15Years: 0,
-    average12Months: 0,
-    projection: 0
-  };
-
-  if (data.length === 0) {
-    return defaultStats;
-  }
-  
-  // Ordenar por data (mais recente primeiro)
-  const sortedData = [...data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  const values = sortedData.map(d => d.value);
-  
-  // Últimos 12 meses: pega apenas os 12 primeiros (mais recentes)
-  const last12Months = values.slice(0, Math.min(12, values.length));
-  const average12Months = calculateAnnualAverage(last12Months);
-  
-  // Últimos 15 anos (180 meses): pega até 180 valores do histórico completo
-  // Isso garante que sejam períodos DIFERENTES!
-  const last15Years = values.slice(0, Math.min(180, values.length));
-  const average15Years = calculateAnnualAverage(last15Years);
-  
-  // Projeção até entrega (se data fornecida)
-  let projection: number | undefined;
-  if (deliveryDate) {
-    const today = new Date();
-    const monthsToDelivery = Math.max(1, 
-      (deliveryDate.getFullYear() - today.getFullYear()) * 12 - 
-      today.getMonth() + deliveryDate.getMonth()
-    );
-    
-    // Projeção baseada na tendência dos últimos 12 meses
-    const monthlyAvg = Math.pow(1 + average12Months / 100, 1/12) - 1;
-    const projectedAnnual = (Math.pow(1 + monthlyAvg, 12) - 1) * 100;
-    // Aplica margem de segurança de 5% na projeção
-    projection = parseFloat((projectedAnnual * 0.95).toFixed(2));
-  }
-  
-  return {
-    average15Years,
-    average12Months,
-    projection
-  };
-}
-
-/**
- * Hook helper para React (opcional)
- */
-export function createIndexFetcher() {
-  return {
-    getINCC: async (deliveryDate?: Date) => getIndexStats('INCC', deliveryDate),
-    getIPCA: async (deliveryDate?: Date) => getIndexStats('IPCA', deliveryDate)
   };
 }
