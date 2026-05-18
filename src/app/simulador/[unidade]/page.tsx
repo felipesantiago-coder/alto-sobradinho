@@ -7,9 +7,10 @@ import { Input } from '@/components/ui/input'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Calculator, AlertCircle, Building2, Wallet, TrendingUp, Clock, Plus, X } from 'lucide-react'
+import { ArrowLeft, Calculator, AlertCircle, Building2, Wallet, TrendingUp, Clock, Plus, X, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { ThemeToggleSimple } from '@/components/theme-toggle-simple'
+import { getIndexStats, IndexStats } from '@/services/ibge-service'
 
 const deliveryDates: Record<string, Date> = {
   'alto-da-alvorada': new Date('2027-03-31'),
@@ -64,6 +65,11 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
   const [extraPayments, setExtraPayments] = useState<ExtraPayment[]>([])
   const [showExtraPaymentsForm, setShowExtraPaymentsForm] = useState(false)
   const [newExtraPayment, setNewExtraPayment] = useState<{ tipo: 'anual' | 'semestral', data: string, valor: string }>({ tipo: 'anual', data: '', valor: '' })
+  const [inccStats, setInccStats] = useState<IndexStats | null>(null)
+  const [ipcaStats, setIpcaStats] = useState<IndexStats | null>(null)
+  const [loadingIndices, setLoadingIndices] = useState(true)
+  const [inccPeriod, setInccPeriod] = useState<string>('12m')
+  const [ipcaPeriod, setIpcaPeriod] = useState<string>('12m')
 
   useEffect(() => {
     setIsClient(true)
@@ -78,13 +84,36 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
     }
 
     if (empreendimento && deliveryDates[empreendimento]) {
-      setDeliveryDate(deliveryDates[empreendimento].toISOString().split('T')[0])
+      const delivery = deliveryDates[empreendimento]
+      setDeliveryDate(delivery.toISOString().split('T')[0])
+      // Buscar índices do IBGE quando tiver data de entrega
+      loadIndices(delivery)
     } else {
       const defaultDelivery = new Date()
       defaultDelivery.setFullYear(defaultDelivery.getFullYear() + 2)
       setDeliveryDate(defaultDelivery.toISOString().split('T')[0])
+      loadIndices(defaultDelivery)
     }
   }, [])
+
+  async function loadIndices(deliveryDateObj: Date) {
+    setLoadingIndices(true)
+    try {
+      const [inccData, ipcaData] = await Promise.all([
+        getIndexStats('INCC', deliveryDateObj),
+        getIndexStats('IPCA', deliveryDateObj)
+      ])
+      setInccStats(inccData)
+      setIpcaStats(ipcaData)
+      // Setar valores padrão com base na média de 12 meses
+      setInccRate(inccData.average12Months)
+      setIpcaRate(ipcaData.average12Months)
+    } catch (error) {
+      console.error('Erro ao carregar índices:', error)
+    } finally {
+      setLoadingIndices(false)
+    }
+  }
 
   const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
   const getMonthsDifference = (start: Date, end: Date) => Math.max(0, (end.getFullYear() - start.getFullYear()) * 12 - start.getMonth() + end.getMonth())
@@ -304,6 +333,25 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
     if (saleValue && deliveryDate && !isEditingSinal) calculate()
   }, [saleValue, discountValue, capturePct, deliveryDate, inccRate, ipcaRate, customIntermediaria, customMensal, isEditingSinal, extraPayments])
 
+  // Efeito para atualizar taxa quando período mudar
+  useEffect(() => {
+    if (inccStats) {
+      const rate = inccPeriod === '15a' ? inccStats.average15Years : 
+                   inccPeriod === '12m' ? inccStats.average12Months : 
+                   inccStats.projection || inccStats.average12Months
+      setInccRate(rate)
+    }
+  }, [inccPeriod, inccStats])
+
+  useEffect(() => {
+    if (ipcaStats) {
+      const rate = ipcaPeriod === '15a' ? ipcaStats.average15Years : 
+                   ipcaPeriod === '12m' ? ipcaStats.average12Months : 
+                   ipcaStats.projection || ipcaStats.average12Months
+      setIpcaRate(rate)
+    }
+  }, [ipcaPeriod, ipcaStats])
+
   if (!isClient) return null
 
   const finalValue = (parseFloat(saleValue) || 0) - (parseFloat(discountValue) || 0)
@@ -482,26 +530,38 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
               
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>INCC (Obra)</Label>
-                  <Select value={inccRate.toString()} onValueChange={(v) => setInccRate(parseFloat(v))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                  <div className="flex items-center justify-between">
+                    <Label>INCC (Obra)</Label>
+                    {loadingIndices && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
+                  </div>
+                  <Select value={inccPeriod} onValueChange={setInccPeriod}>
+                    <SelectTrigger><SelectValue placeholder="Período INCC" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="6.17">6,17% a.a.</SelectItem>
-                      <SelectItem value="7.44">7,44% a.a.</SelectItem>
-                      <SelectItem value="8.73">8,73% a.a.</SelectItem>
+                      <SelectItem value="15a">Média 15 anos ({inccStats?.average15Years.toFixed(2) || '--'}% a.a.)</SelectItem>
+                      <SelectItem value="12m">Média 12 meses ({inccStats?.average12Months.toFixed(2) || '--'}% a.a.)</SelectItem>
+                      <SelectItem value="proj">Projeção até entrega ({inccStats?.projection?.toFixed(2) || '--'}% a.a.)</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Taxa atual: <span className="font-medium">{inccRate.toFixed(2)}% a.a.</span>
+                  </p>
                 </div>
                 <div className="space-y-2">
-                  <Label>IPCA (Pós-Obra)</Label>
-                  <Select value={ipcaRate.toString()} onValueChange={(v) => setIpcaRate(parseFloat(v))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                  <div className="flex items-center justify-between">
+                    <Label>IPCA (Pós-Obra)</Label>
+                    {loadingIndices && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
+                  </div>
+                  <Select value={ipcaPeriod} onValueChange={setIpcaPeriod}>
+                    <SelectTrigger><SelectValue placeholder="Período IPCA" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="4.5">4,50% a.a.</SelectItem>
-                      <SelectItem value="5.72">5,72% a.a.</SelectItem>
-                      <SelectItem value="7.5">7,50% a.a.</SelectItem>
+                      <SelectItem value="15a">Média 15 anos ({ipcaStats?.average15Years.toFixed(2) || '--'}% a.a.)</SelectItem>
+                      <SelectItem value="12m">Média 12 meses ({ipcaStats?.average12Months.toFixed(2) || '--'}% a.a.)</SelectItem>
+                      <SelectItem value="proj">Projeção até entrega ({ipcaStats?.projection?.toFixed(2) || '--'}% a.a.)</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Taxa atual: <span className="font-medium">{ipcaRate.toFixed(2)}% a.a.</span>
+                  </p>
                 </div>
               </div>
             </CardContent>
