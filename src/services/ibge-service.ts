@@ -162,16 +162,9 @@ function processStats(data: IndexData[], deliveryDate?: Date): IndexStats {
   const last12Months = values.slice(0, Math.min(12, values.length));
   const average12Months = calculateAnnualAverage(last12Months);
   
-  // Últimos 15 anos (180 meses) - pega do índice 12 até 180 (ou todos disponíveis se menos que 180)
-  // Isso garante que sejam períodos DIFERENTES
-  let last15Years: number[];
-  if (values.length <= 12) {
-    // Se tem poucos dados, usa tudo mesmo
-    last15Years = values;
-  } else {
-    // Pega desde o início até 180 meses, excluindo os últimos 12 já usados
-    last15Years = values.slice(0, Math.min(180, values.length));
-  }
+  // Últimos 15 anos (180 meses) - usa TODOS os dados disponíveis, não apenas os mais recentes
+  // Isso garante que sejam períodos DIFERENTES: 12m = últimos 12, 15a = média de todo o histórico
+  const last15Years = values.slice(0, Math.min(180, values.length));
   const average15Years = calculateAnnualAverage(last15Years);
   
   // Projeção até entrega (se data fornecida)
