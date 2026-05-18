@@ -1,290 +1,152 @@
 import { NextResponse } from 'next/server';
 
-// Configurações de Cache (6 horas)
-const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
-
-interface CachedData {
+// Cache em memória (Server-side)
+let cache: {
   data: any;
   timestamp: number;
-}
+} | null = null;
 
-// Cache em memória (server-side)
-let memoryCache: Record<string, CachedData> = {};
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 horas
 
-interface MonthlyValue {
-  data: string; // "dd/mm/yyyy"
-  valor: number; // variação %
-}
-
-interface IndexResponse {
+interface IndiceResult {
   avg180: number;
   avg12: number;
-  projection: number;
-  lastUpdate: string;
-  totalMonths: number;
-  values: MonthlyValue[];
   source: string;
   indicator: string;
-  fallback?: boolean;
 }
 
-// --- FUNÇÕES DE BUSCA INCC ---
-
-async function fetchINCCFromBrasilIndicadores(): Promise<MonthlyValue[] | null> {
+async function fetchFromBrasilIndicadores(type: 'INCC' | 'IPCA'): Promise<number[] | null> {
   try {
-    const response = await fetch('https://brasilindicadores.com.br/incc-m?handler=HistoricoValoresIndicadorPartial', {
+    // Mapeamento simples para URLs (ajuste conforme a disponibilidade real das URLs se mudarem)
+    // Nota: A lógica de scraping de HTML é frágil. Se a estrutura mudar, este bloco falhará e irá para o Bacen.
+    // Para IPCA, muitas vezes o BrasilIndicadores tem endpoint similar ou usamos o Bacen direto como primary para IPCA.
+    // Vamos tentar simular a requisição que funcionaria para INCC-M.
+    
+    const url = type === 'INCC' 
+      ? 'https://brasilindicadores.com.br/incc-m?handler=HistoricoValoresIndicadorPartial'
+      : null; // Para IPCA, vamos pular direto para o Bacen que é mais estável para este índice neste contexto
+
+    if (!url) return null;
+
+    const response = await fetch(url, {
       headers: {
         'X-Requested-With': 'XMLHttpRequest',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
       },
-      next: { revalidate: 3600 } // Revalida a cada hora no edge se possível
+      cache: 'no-store'
     });
 
     if (!response.ok) return null;
     const html = await response.text();
-
-    // Parser simples para extrair da tabela HTML
-    // Estrutura esperada: <tr><td>Ano</td><td>Jan</td>...<td>Dez</td><td>Acum</td></tr>
+    
+    // Parser simples de tabela HTML
     const rows = html.match(/<tr[^>]*>[\s\S]*?<\/tr>/g);
     if (!rows) return null;
 
-    const values: MonthlyValue[] = [];
-    const months = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-
-    for (const row of rows) {
-      const cells = row.match(/<td[^>]*>(.*?)<\/td>/gis);
-      if (!cells || cells.length < 13) continue;
-
-      // A primeira célula é o ano
-      const yearCell = cells[0].replace(/<[^>]*>/g, '').trim();
-      const year = parseInt(yearCell);
-      if (isNaN(year) || year < 1990 || year > new Date().getFullYear() + 1) continue;
-
-      // Células 1 a 12 são os meses
-      for (let i = 0; i < 12; i++) {
-        const rawValue = cells[i + 1].replace(/<[^>]*>/g, '').trim().replace('%', '').replace(',', '.');
-        const val = parseFloat(rawValue);
-        
-        // Ignora células vazias ou futuras
-        if (!isNaN(val)) {
-          // Verifica se o mês já passou no ano atual
-          const now = new Date();
-          if (year === now.getFullYear() && i + 1 > now.getMonth() + 1) continue;
-
-          values.push({
-            data: `01/${String(i + 1).padStart(2, '0')}/${year}`,
-            valor: val
-          });
+    const values: number[] = [];
+    // Pula cabeçalho, processa linhas de anos
+    for (let i = 1; i < rows.length; i++) {
+      const cells = rows[i].match(/<td[^>]*>(.*?)<\/td>/gis);
+      if (cells && cells.length >= 12) {
+        for (let j = 0; j < 12; j++) {
+          const raw = cells[j].replace(/<[^>]*>/g, '').trim().replace('%', '').replace(',', '.');
+          const val = parseFloat(raw);
+          if (!isNaN(val)) values.push(val);
         }
       }
     }
-
-    // Ordenar cronologicamente
-    values.sort((a, b) => new Date(a.data.split('/').reverse().join('-')).getTime() - new Date(b.data.split('/').reverse().join('-')).getTime());
-    
-    // Filtro de sanidade: apenas a partir de 2011 para garantir volume
-    const filtered = values.filter(v => new Date(v.data.split('/').reverse().join('-')).getFullYear() >= 2011);
-    
-    if (filtered.length < 12) return null;
-    return filtered;
-
+    return values.length > 0 ? values : null;
   } catch (e) {
-    console.error('Erro BrasilIndicadores INCC:', e);
+    console.warn(`Falha no scraping ${type}:`, e);
     return null;
   }
 }
 
-async function fetchINCCFromBacen(): Promise<MonthlyValue[] | null> {
+async function fetchFromBacen(code: number): Promise<number[] | null> {
   try {
-    // Série 192: INCC-DI
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setMonth(startDate.getMonth() - 200);
-
-    const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.192/dados?formato=json&dataInicial=${startDate.toLocaleDateString('pt-BR').replace(/\//g, '-')}&dataFinal=${endDate.toLocaleDateString('pt-BR').replace(/\//g, '-')}`;
+    // 192 = INCC-DI, 433 = IPCA
+    const today = new Date();
+    const tenYearsAgo = new Date();
+    tenYearsAgo.setFullYear(today.getFullYear() - 15); // Pegar 15 anos para garantir 180 meses
     
-    const response = await fetch(url);
-    if (!response.ok) return null;
-    const json = await response.json();
+    const formatDate = (d: Date) => d.toLocaleDateString('pt-BR');
+    const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${code}/dados?formato=json&dataInicial=${formatDate(tenYearsAgo)}&dataFinal=${formatDate(today)}`;
 
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const json = await res.json();
+    
     if (!Array.isArray(json)) return null;
-
-    return json.map((item: any) => ({
-      data: item.data, // já vem dd/mm/yyyy
-      valor: parseFloat(item.valor)
-    })).sort((a: any, b: any) => new Date(a.data.split('/').reverse().join('-')).getTime() - new Date(b.data.split('/').reverse().join('-')).getTime());
-
-  } catch (e) {
-    console.error('Erro Bacen INCC:', e);
-    return null;
-  }
-}
-
-// --- FUNÇÕES DE BUSCA IPCA ---
-
-async function fetchIPCAFromBrasilIndicadores(): Promise<MonthlyValue[] | null> {
-  try {
-    // URL hipotética baseada no padrão do site, ajustada para IPCA
-    // Se o site não tiver endpoint direto similar, usamos o Bacen como primary para IPCA
-    // Muitos sites de indicadores tratam IPCA de forma similar. 
-    // Vamos tentar o Bacen como fonte primária para IPCA pois é mais estável para este índice.
-    return null; 
-  } catch (e) {
-    return null;
-  }
-}
-
-async function fetchIPCAFromBacen(): Promise<MonthlyValue[] | null> {
-  try {
-    // Série 433: IPCA
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setMonth(startDate.getMonth() - 200);
-
-    const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=json&dataInicial=${startDate.toLocaleDateString('pt-BR').replace(/\//g, '-')}&dataFinal=${endDate.toLocaleDateString('pt-BR').replace(/\//g, '-')}`;
     
-    const response = await fetch(url);
-    if (!response.ok) return null;
-    const json = await response.json();
-
-    if (!Array.isArray(json)) return null;
-
-    return json.map((item: any) => ({
-      data: item.data,
-      valor: parseFloat(item.valor)
-    })).sort((a: any, b: any) => new Date(a.data.split('/').reverse().join('-')).getTime() - new Date(b.data.split('/').reverse().join('-')).getTime());
-
+    // Ordenar por data e extrair valores
+    return json
+      .map((item: any) => ({ date: new Date(item.data + 'T12:00:00'), value: parseFloat(item.valor) }))
+      .sort((a: any, b: any) => a.date.getTime() - b.date.getTime())
+      .map((item: any) => item.value);
   } catch (e) {
-    console.error('Erro Bacen IPCA:', e);
+    console.warn(`Falha no Bacen ${code}:`, e);
     return null;
   }
 }
 
-// --- CÁLCULOS E FALLBACKS ---
-
-function calculateAverages(values: MonthlyValue[]): { avg180: number, avg12: number } {
+function calculateAverages(values: number[]): { avg180: number; avg12: number } {
   if (values.length === 0) return { avg180: 0, avg12: 0 };
-
+  
   const last12 = values.slice(-12);
   const last180 = values.slice(-180);
-
-  const sum12 = last12.reduce((acc, v) => acc + v.valor, 0);
-  const sum180 = last180.reduce((acc, v) => acc + v.valor, 0);
-
-  return {
-    avg12: parseFloat((sum12 / last12.length).toFixed(4)),
-    avg180: parseFloat((sum180 / last180.length).toFixed(4))
-  };
-}
-
-function getFallbackINCC(): IndexResponse {
-  return {
-    avg180: 0.5570,
-    avg12: 0.5092,
-    projection: 0.5092,
-    lastUpdate: new Date().toLocaleDateString('pt-BR'),
-    totalMonths: 180,
-    values: [],
-    source: 'Cache Local (Fallback)',
-    indicator: 'INCC-M (Estimado)',
-    fallback: true
-  };
-}
-
-function getFallbackIPCA(): IndexResponse {
-  return {
-    avg180: 0.4800,
-    avg12: 0.4200,
-    projection: 0.4200,
-    lastUpdate: new Date().toLocaleDateString('pt-BR'),
-    totalMonths: 180,
-    values: [],
-    source: 'Cache Local (Fallback)',
-    indicator: 'IPCA (Estimado)',
-    fallback: true
-  };
-}
-
-async function getIndexData(type: 'INCC' | 'IPCA'): Promise<IndexResponse> {
-  const cacheKey = type;
-  const cached = memoryCache[cacheKey];
   
-  if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
-    return cached.data;
-  }
-
-  let values: MonthlyValue[] | null = null;
-  let source = '';
-  let indicator = '';
-
-  if (type === 'INCC') {
-    indicator = 'INCC-M';
-    // Camada 1: Brasil Indicadores
-    values = await fetchINCCFromBrasilIndicadores();
-    if (values) source = 'brasilindicadores.com.br';
-
-    // Camada 2: Bacen
-    if (!values) {
-      values = await fetchINCCFromBacen();
-      if (values) {
-        source = 'Bacen SGS (Série 192 - INCC-DI)';
-        indicator = 'INCC-DI';
-      }
-    }
-  } else {
-    indicator = 'IPCA';
-    // Para IPCA, Bacen é muito confiável como camada 1
-    values = await fetchIPCAFromBacen();
-    if (values) source = 'Bacen SGS (Série 433)';
-  }
-
-  // Camada 3: Fallback
-  if (!values || values.length < 12) {
-    const fallback = type === 'INCC' ? getFallbackINCC() : getFallbackIPCA();
-    memoryCache[cacheKey] = { data: fallback, timestamp: Date.now() };
-    return fallback;
-  }
-
-  const { avg12, avg180 } = calculateAverages(values);
+  const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
   
-  const result: IndexResponse = {
-    avg180,
-    avg12,
-    projection: avg12, // Projeção usa a média recente
-    lastUpdate: values[values.length - 1].data,
-    totalMonths: values.length,
-    values,
-    source,
-    indicator
+  return {
+    avg12: last12.length ? Number((sum(last12) / last12.length).toFixed(4)) : 0,
+    avg180: last180.length ? Number((sum(last180) / last180.length).toFixed(4)) : Number((sum(values) / values.length).toFixed(4))
   };
-
-  memoryCache[cacheKey] = { data: result, timestamp: Date.now() };
-  return result;
 }
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const type = searchParams.get('type') as 'INCC' | 'IPCA' | 'ALL';
-
-  try {
-    if (type === 'ALL' || !type) {
-      const [incc, ipca] = await Promise.all([
-        getIndexData('INCC'),
-        getIndexData('IPCA')
-      ]);
-      return NextResponse.json({ incc, ipca });
-    } else if (type === 'INCC' || type === 'IPCA') {
-      const data = await getIndexData(type);
-      return NextResponse.json({ [type.toLowerCase()]: data });
-    } else {
-      return NextResponse.json({ error: 'Tipo inválido' }, { status: 400 });
-    }
-  } catch (error) {
-    console.error('Erro crítico na API de índices:', error);
-    // Retorna fallbacks em caso de erro geral
-    return NextResponse.json({
-      incc: getFallbackINCC(),
-      ipca: getFallbackIPCA()
-    });
+export async function GET() {
+  // Verificar Cache
+  if (cache && Date.now() - cache.timestamp < CACHE_TTL_MS) {
+    return NextResponse.json(cache.data);
   }
+
+  // --- Processar INCC ---
+  let inccValues = await fetchFromBrasilIndicadores('INCC'); // Tenta INCC-M
+  let inccSource = 'Brasil Indicadores (INCC-M)';
+  let inccIndicator = 'INCC-M';
+  
+  if (!inccValues || inccValues.length < 12) {
+    inccValues = await fetchFromBacen(192); // Fallback INCC-DI
+    inccSource = 'Bacen SGS (INCC-DI)';
+    inccIndicator = 'INCC-DI';
+  }
+
+  // --- Processar IPCA ---
+  let ipcaValues = await fetchFromBacen(433); // IPCA direto do Bacen
+  let ipcaSource = 'Bacen SGS (IPCA)';
+  let ipcaIndicator = 'IPCA';
+
+  if (!ipcaValues || ipcaValues.length < 12) {
+    // Fallback estático se tudo falhar
+    ipcaValues = [0.40, 0.45, 0.38, 0.42, 0.50, 0.41, 0.39, 0.44, 0.48, 0.36, 0.43, 0.40]; 
+    ipcaSource = 'Fallback Estático';
+  }
+  
+  if (!inccValues || inccValues.length < 12) {
+    inccValues = [0.50, 0.55, 0.48, 0.52, 0.60, 0.51, 0.49, 0.54, 0.58, 0.46, 0.53, 0.50];
+    inccSource = 'Fallback Estático';
+  }
+
+  const inccStats = calculateAverages(inccValues);
+  const ipcaStats = calculateAverages(ipcaValues);
+
+  const result = {
+    incc: { ...inccStats, source: inccSource, indicator: inccIndicator },
+    ipca: { ...ipcaStats, source: ipcaSource, indicator: ipcaIndicator },
+    lastUpdate: new Date().toISOString()
+  };
+
+  // Atualizar Cache
+  cache = { data: result, timestamp: Date.now() };
+
+  return NextResponse.json(result);
 }
