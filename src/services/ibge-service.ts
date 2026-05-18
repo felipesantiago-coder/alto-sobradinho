@@ -1,93 +1,57 @@
 export interface IBGEData {
   incc: {
-    media15Anos: number;
+    media15Anos: number; // Mapeado de avg180 (aprox 15 anos)
     media12Meses: number;
     projecao: number;
+    source?: string;
+    indicator?: string;
   };
   ipca: {
     media15Anos: number;
     media12Meses: number;
     projecao: number;
+    source?: string;
+    indicator?: string;
   };
 }
 
 /**
- * Busca dados reais do IBGE.
- * Estratégia: Tenta buscar últimos períodos. Se falhar (400), usa dados estáticos seguros.
- * A API SIDRA às vezes falha com 'p/last' em certos contextos de CORS ou proxy.
+ * Busca índices da nossa API Route interna (/api/incc-ipca)
+ * que utiliza fontes confiáveis (BrasilIndicadores/Bacen) com cache.
  */
 export async function getIBGEIndices(): Promise<IBGEData> {
-  // Fallback seguro imediato caso a API falhe completamente
-  const fallbackData: IBGEData = {
-    incc: { media15Anos: 4.85, media12Meses: 5.12, projecao: 5.20 },
-    ipca: { media15Anos: 5.40, media12Meses: 4.60, projecao: 4.75 }
-  };
+  try {
+    const response = await fetch('/api/incc-ipca?type=ALL', {
+      next: { revalidate: 3600 } // Revalida a cada hora no client side cache se necessário
+    });
 
-  const fetchIndex = async (code: number): Promise<number[]> => {
-    // Tentativa 1: Últimos 120 meses (10 anos) - costuma ser mais estável que 180
-    const url = `https://apisidra.ibge.gov.br/values/t/${code}/n1/all/p/last%20120?formato=JSON`;
+    if (!response.ok) throw new Error('Falha na API interna');
+
+    const data = await response.json();
     
-    try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Erro HTTP: ${response.status}`);
+    // Mapeia a resposta da API (avg180) para o formato esperado pelo frontend (media15Anos)
+    return {
+      incc: {
+        media15Anos: data.incc.avg180,
+        media12Meses: data.incc.avg12,
+        projecao: data.incc.projection,
+        source: data.incc.source,
+        indicator: data.incc.indicator
+      },
+      ipca: {
+        media15Anos: data.ipca.avg180,
+        media12Meses: data.ipca.avg12,
+        projecao: data.ipca.projection,
+        source: data.ipca.source,
+        indicator: data.ipca.indicator
       }
-      const data = await response.json();
-      
-      if (!Array.isArray(data) || data.length < 2) return [];
-
-      // Extrai valores (V) ignorando cabeçalho
-      return data.slice(1).map((item: any) => parseFloat(item.V) || 0);
-    } catch (error) {
-      console.warn(`Tentativa direta falhou para índice ${code}, usando fallback.`, error);
-      return [];
-    }
-  };
-
-  const [inccValues, ipcaValues] = await Promise.all([fetchIndex(189), fetchIndex(433)]);
-
-  // Se não conseguiu dados reais, retorna fallback imediatamente
-  if (inccValues.length === 0 && ipcaValues.length === 0) {
-    return fallbackData;
+    };
+  } catch (error) {
+    console.error('Erro ao buscar índices da API interna, usando fallback hardcoded:', error);
+    // Fallback final de segurança
+    return {
+      incc: { media15Anos: 0.55, media12Meses: 0.50, projecao: 0.50 },
+      ipca: { media15Anos: 0.48, media12Meses: 0.42, projecao: 0.42 }
+    };
   }
-
-  const calculateAnnualizedAverage = (values: number[], months: number): number => {
-    if (values.length === 0) return 0;
-    const subset = values.slice(0, Math.min(values.length, months));
-    if (subset.length === 0) return 0;
-
-    let accumulatedFactor = 1;
-    for (const rate of subset) {
-      accumulatedFactor *= (1 + rate / 100);
-    }
-
-    const n = subset.length;
-    // Evita divisão por zero
-    if (n === 0) return 0;
-
-    const geometricMeanMonthly = Math.pow(accumulatedFactor, 1 / n) - 1;
-    const annualRate = (Math.pow(1 + geometricMeanMonthly, 12) - 1) * 100;
-
-    return parseFloat(annualRate.toFixed(2));
-  };
-
-  // Cálculos
-  const incc15anos = calculateAnnualizedAverage(inccValues, 180); // Pega o máximo disponível
-  const incc12meses = calculateAnnualizedAverage(inccValues, 12);
-  
-  const ipca15anos = calculateAnnualizedAverage(ipcaValues, 180);
-  const ipca12meses = calculateAnnualizedAverage(ipcaValues, 12);
-
-  return {
-    incc: {
-      media15Anos: incc15anos || fallbackData.incc.media15Anos,
-      media12Meses: incc12meses || fallbackData.incc.media12Meses,
-      projecao: incc12meses > 0 ? incc12meses : fallbackData.incc.projecao
-    },
-    ipca: {
-      media15Anos: ipca15anos || fallbackData.ipca.media15Anos,
-      media12Meses: ipca12meses || fallbackData.ipca.media12Meses,
-      projecao: ipca12meses > 0 ? ipca12meses : fallbackData.ipca.projecao
-    }
-  };
 }
