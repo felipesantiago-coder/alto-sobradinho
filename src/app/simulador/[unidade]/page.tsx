@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, TrendingUp, DollarSign, AlertCircle, CheckCircle2, Home } from 'lucide-react';
 
-// Datas de entrega estimadas
+// Datas de entrega
 const deliveryDates: Record<string, Date> = {
   'alto-da-alvorada': new Date('2027-03-31'),
   'alto-da-aurora': new Date('2026-12-31'),
@@ -47,28 +47,28 @@ interface ResultadoSimulacao {
   parcelasObras: Parcela[];
 }
 
+// Formatador de Moeda
+const formatCurrency = (value: number) => 
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+
 export default function SimuladorUnidadePage() {
   const params = useParams();
   const router = useRouter();
   const slugParam = params.unidade as string; // Ex: "C-305" ou "alto-da-aurora-C-305"
   
   const [unidade, setUnidade] = useState<Unidade | null>(null);
-  const [empreendimentoSlug, setEmpreendimentoSlug] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Estados do Simulador
+  // Estados
   const [valorVenda, setValorVenda] = useState(0);
   const [desconto, setDesconto] = useState(0);
   const [percentualCaptação, setPercentualCaptação] = useState(30);
   const [indiceSelecionado, setIndiceSelecionado] = useState<'INCC' | 'IPCA'>('INCC');
   const [periodoMedia, setPeriodoMedia] = useState<'180m' | '12m' | 'projection'>('12m');
   
-  // Dados dos Índices
   const [indicesData, setIndicesData] = useState<IndicesResponse | null>(null);
   const [loadingIndices, setLoadingIndices] = useState(true);
-  
-  // Resultados
   const [resultadoSimulacao, setResultadoSimulacao] = useState<ResultadoSimulacao | null>(null);
 
   useEffect(() => {
@@ -77,36 +77,30 @@ export default function SimuladorUnidadePage() {
         setLoading(true);
         setError(null);
 
-        if (!slugParam) {
-          throw new Error('Nenhuma unidade especificada na URL.');
-        }
+        if (!slugParam) throw new Error('Unidade não especificada.');
 
-        // CORREÇÃO: Varredura completa em todos os empreendimentos
-        const todosEmpreendimentos = ['alto-da-alvorada', 'alto-da-aurora', 'alto-do-horizonte'];
+        // Lógica de Busca Robusta: Procura em TODOS os empreendimentos
         let unidadeEncontrada: Unidade | undefined;
-        let slugEncontrado = '';
+        const todosEmpreendimentos = [
+          getUnidadesByEmpreendimento('alto-da-alvorada'),
+          getUnidadesByEmpreendimento('alto-da-aurora'),
+          getUnidadesByEmpreendimento('alto-do-horizonte')
+        ];
 
-        // Normaliza o termo de busca (remove prefixos se houver)
-        const termoBusca = slugParam.toLowerCase().trim();
+        // Limpa o slug para pegar apenas o código provável (remove prefixos conhecidos)
+        const codigoLimpo = slugParam
+          .replace(/alto-da-alvorada[- ]?/i, '')
+          .replace(/alto-da-aurora[- ]?/i, '')
+          .replace(/alto-do-horizonte[- ]?/i, '')
+          .trim();
 
-        for (const slug of todosEmpreendimentos) {
-          const unidades = getUnidadesByEmpreendimento(slug);
-          
-          // Tenta encontrar por correspondência exata do código ou sufixo
-          unidadeEncontrada = unidades.find(u => {
-            const codigoLimpo = u.unidade?.trim().toLowerCase() || '';
-            const codigoFull = `${slug}-${codigoLimpo}`.toLowerCase();
-            
-            return termoBusca === codigoLimpo || 
-                   termoBusca === codigoFull || 
-                   termoBusca.endsWith(codigoLimpo) ||
-                   u.codigo?.toString() === termoBusca;
-          });
-
-          if (unidadeEncontrada) {
-            slugEncontrado = slug;
-            break;
-          }
+        for (const lista of todosEmpreendimentos) {
+          unidadeEncontrada = lista.find(u => 
+            u.unidade?.trim().toLowerCase() === codigoLimpo.toLowerCase() || 
+            u.unidade?.trim().toLowerCase() === slugParam.toLowerCase() ||
+            String(u.codigo) === codigoLimpo
+          );
+          if (unidadeEncontrada) break;
         }
 
         if (!unidadeEncontrada) {
@@ -114,15 +108,25 @@ export default function SimuladorUnidadePage() {
         }
 
         setUnidade(unidadeEncontrada);
-        setEmpreendimentoSlug(slugEncontrado);
         setValorVenda(unidadeEncontrada.valorVenda || 0);
 
-        // Carregar Índices da API Local
-        await carregarIndices();
+        // Carregar Índices
+        const res = await fetch('/api/incc-ipca');
+        if (res.ok) {
+          const data = await res.json();
+          setIndicesData(data);
+        } else {
+          throw new Error('Falha ao carregar índices econômicos.');
+        }
 
       } catch (err) {
         console.error(err);
-        setError(err instanceof Error ? err.message : 'Erro ao carregar dados.');
+        setError(err instanceof Error ? err.message : 'Erro desconhecido.');
+        // Fallback manual de índices se a API falhar
+        setIndicesData({
+          incc: { avg180: 0.45, avg12: 0.50, source: 'Fallback', indicator: 'INCC' },
+          ipca: { avg180: 0.40, avg12: 0.38, source: 'Fallback', indicator: 'IPCA' }
+        });
       } finally {
         setLoading(false);
       }
@@ -135,47 +139,28 @@ export default function SimuladorUnidadePage() {
   useEffect(() => {
     if (unidade && indicesData && valorVenda > 0) {
       const valorFinal = valorVenda - desconto;
-      
-      let taxaMensal = 0;
       const dadosIndice = indiceSelecionado === 'INCC' ? indicesData.incc : indicesData.ipca;
+      
+      let taxaMensal = periodoMedia === '180m' ? dadosIndice.avg180 : dadosIndice.avg12;
+      if (periodoMedia === 'projection') taxaMensal = dadosIndice.avg12;
 
-      if (periodoMedia === '180m') taxaMensal = dadosIndice.avg180;
-      else if (periodoMedia === '12m') taxaMensal = dadosIndice.avg12;
-      else taxaMensal = dadosIndice.avg12; // Projeção
+      // Descobrir data de entrega baseada na lista onde a unidade foi encontrada
+      let dataEntrega = deliveryDates['alto-da-alvorada']; // Default
+      if (getUnidadesByEmpreendimento('alto-da-aurora').includes(unidade)) dataEntrega = deliveryDates['alto-da-aurora'];
+      else if (getUnidadesByEmpreendimento('alto-do-horizonte').includes(unidade)) dataEntrega = deliveryDates['alto-do-horizonte'];
 
-      const dataEntrega = deliveryDates[empreendimentoSlug] || new Date('2027-01-01');
-
-      const resultado = calcularSimulacaoTabelaDireta({
+      const resultado = calcularSimulacao({
         valorFinal,
         percentualCaptação,
         taxaMensal,
         dataEntrega,
         dataInicio: new Date(),
       });
-
       setResultadoSimulacao(resultado);
     }
-  }, [unidade, empreendimentoSlug, valorVenda, desconto, percentualCaptação, indiceSelecionado, periodoMedia, indicesData]);
+  }, [unidade, valorVenda, desconto, percentualCaptação, indiceSelecionado, periodoMedia, indicesData]);
 
-  async function carregarIndices() {
-    setLoadingIndices(true);
-    try {
-      const res = await fetch('/api/incc-ipca');
-      if (!res.ok) throw new Error('Falha na API de índices');
-      const data: IndicesResponse = await res.json();
-      setIndicesData(data);
-    } catch (err) {
-      console.warn('Usando fallback para índices:', err);
-      setIndicesData({
-        incc: { avg180: 0.46, avg12: 0.51, source: 'Offline', indicator: 'INCC' },
-        ipca: { avg180: 0.42, avg12: 0.39, source: 'Offline', indicator: 'IPCA' }
-      });
-    } finally {
-      setLoadingIndices(false);
-    }
-  }
-
-  function calcularSimulacaoTabelaDireta(args: {
+  function calcularSimulacao(args: {
     valorFinal: number;
     percentualCaptação: number;
     taxaMensal: number;
@@ -183,7 +168,6 @@ export default function SimuladorUnidadePage() {
     dataInicio: Date;
   }): ResultadoSimulacao {
     const { valorFinal, percentualCaptação, taxaMensal, dataEntrega, dataInicio } = args;
-
     const entrada = valorFinal * 0.10;
     const valorTotalCaptação = valorFinal * (percentualCaptação / 100);
     let saldoParaObras = Math.max(0, valorTotalCaptação - entrada);
@@ -198,28 +182,23 @@ export default function SimuladorUnidadePage() {
 
     for (let i = 0; i < mesesObra; i++) {
       dataAtual.setMonth(dataAtual.getMonth() + 1);
-      
-      // Aplica correção no saldo
       const correcao = saldoDevedorObra * (taxaMensal / 100);
       saldoDevedorObra += correcao;
-      
-      // Abate parcela
       saldoDevedorObra -= parcelaBase;
       if (saldoDevedorObra < 0) saldoDevedorObra = 0;
 
       parcelasObras.push({
         vencimento: dataAtual.toISOString(),
         valor: parcelaBase,
-        descricao: `Parcela ${i + 1}/${mesesObra}`
+        descricao: `${i + 1}ª`
       });
     }
 
-    const totalPagoObras = entrada + parcelasObras.reduce((acc, p) => acc + p.valor, 0);
-    
+    const totalPago = entrada + parcelasObras.reduce((acc, p) => acc + p.valor, 0);
     return {
       entrada,
-      totalObras: totalPagoObras,
-      saldoDevedor: Math.max(0, valorFinal - totalPagoObras),
+      totalObras: totalPago,
+      saldoDevedor: Math.max(0, valorFinal - totalPago),
       parcelasObras
     };
   }
@@ -227,29 +206,19 @@ export default function SimuladorUnidadePage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-10 w-10 animate-spin text-primary" />
-          <p className="text-muted-foreground">Carregando dados da unidade...</p>
-        </div>
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
       </div>
     );
   }
 
   if (error || !unidade) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-        <Card className="w-full max-w-md border-destructive shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-destructive flex items-center gap-2">
-              <AlertCircle className="h-5 w-5" />
-              Erro ao carregar
-            </CardTitle>
-          </CardHeader>
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader><CardTitle className="text-red-600">Erro</CardTitle></CardHeader>
           <CardContent>
-            <p className="mb-6 text-sm">{error || 'Unidade não encontrada.'}</p>
-            <Button asChild className="w-full">
-              <Link href="/empreendimentos">Voltar aos Empreendimentos</Link>
-            </Button>
+            <p className="mb-4">{error}</p>
+            <Button asChild><Link href="/empreendimentos">Voltar</Link></Button>
           </CardContent>
         </Card>
       </div>
@@ -257,18 +226,20 @@ export default function SimuladorUnidadePage() {
   }
 
   const valorFinal = valorVenda - desconto;
-  const dadosIndiceAtuais = indiceSelecionado === 'INCC' ? indicesData?.incc : indicesData?.ipca;
+  const dadosAtuais = indiceSelecionado === 'INCC' ? indicesData?.incc : indicesData?.ipca;
+  const taxaAplicada = periodoMedia === '180m' ? dadosAtuais?.avg180 : dadosAtuais?.avg12;
 
   return (
-    <div className="min-h-screen bg-background font-sans selection:bg-primary/20">
-      <header className="border-b sticky top-0 bg-background/95 backdrop-blur z-50 shadow-sm">
+    <div className="min-h-screen bg-background font-sans">
+      <header className="border-b sticky top-0 bg-background/95 backdrop-blur z-50">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/empreendimentos" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
+            {/* Link corrigido para não levar a 404 */}
+            <Link href="/empreendimentos" className="text-sm font-medium hover:text-primary flex items-center gap-1">
               ← Voltar
             </Link>
-            <div className="h-6 w-px bg-border hidden sm:block"></div>
-            <h1 className="text-lg font-bold truncate text-foreground">
+            <div className="h-6 w-px bg-border mx-2 hidden sm:block" />
+            <h1 className="text-lg font-bold truncate">
               {unidade.bloco} • {unidade.unidade}
             </h1>
           </div>
@@ -278,22 +249,33 @@ export default function SimuladorUnidadePage() {
 
       <main className="container mx-auto px-4 py-8 space-y-8">
         
-        {/* Card de Identificação da Unidade */}
-        <Card className="border-l-4 border-l-primary shadow-md">
+        {/* Card de Resumo com Formatação Correta */}
+        <Card className="bg-gradient-to-r from-primary/5 to-transparent border-l-4 border-l-primary">
           <CardContent className="pt-6">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-primary/10 rounded-full">
-                  <Home className="h-6 w-6 text-primary" />
+              <div>
+                <p className="text-sm text-muted-foreground font-medium">Valor de Tabela</p>
+                <p className="text-3xl font-bold text-primary">
+                  {formatCurrency(valorVenda)}
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-6 text-sm">
+                <div>
+                  <span className="block text-muted-foreground">Área</span>
+                  <span className="font-semibold">{unidade.areaUtil} m²</span>
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-foreground">Unidade {unidade.unidade}</h2>
-                  <p className="text-sm text-muted-foreground">Bloco {unidade.bloco} • {unidade.areaUtil} m² úteis</p>
+                  <span className="block text-muted-foreground">Quartos</span>
+                  <span className="font-semibold">{unidade.quartos}</span>
                 </div>
-              </div>
-              <div className="text-left md:text-right">
-                <p className="text-sm text-muted-foreground">Valor de Tabela</p>
-                <p className="text-2xl font-bold text-primary">R$ {valorVenda.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</p>
+                <div>
+                  <span className="block text-muted-foreground">Banheiros</span>
+                  <span className="font-semibold">{unidade.banheiros}</span>
+                </div>
+                <div>
+                  <span className="block text-muted-foreground">Vagas</span>
+                  <span className="font-semibold">{unidade.vagas || '-'}</span>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -303,42 +285,31 @@ export default function SimuladorUnidadePage() {
           
           {/* Controles */}
           <div className="lg:col-span-5 space-y-6">
-            <Card className="shadow-md">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-primary" />
-                  Parâmetros da Simulação
-                </CardTitle>
-              </CardHeader>
+            <Card>
+              <CardHeader><CardTitle>Simulação</CardTitle></CardHeader>
               <CardContent className="space-y-5">
                 
                 <div className="space-y-2">
-                  <Label htmlFor="desconto">Desconto sobre o valor (R$)</Label>
+                  {/* htmlFor corrigido para bater com o id "desconto" */}
+                  <Label htmlFor="desconto">Desconto (R$)</Label>
                   <Input
                     id="desconto"
                     type="number"
                     value={desconto}
                     onChange={(e) => setDesconto(Number(e.target.value))}
-                    placeholder="0"
-                    className="font-mono text-right"
+                    className="font-mono"
                   />
-                  <div className="flex justify-between text-xs px-1">
-                    <span className="text-muted-foreground">Valor Final:</span>
-                    <span className="font-bold text-foreground">R$ {valorFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                  </div>
+                  <p className="text-xs text-right text-muted-foreground">
+                    Final: <strong>{formatCurrency(valorFinal)}</strong>
+                  </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="captacao">Captação durante a obra (%)</Label>
-                  <Select 
-                    value={percentualCaptação.toString()} 
-                    onValueChange={(val) => setPercentualCaptação(Number(val))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
+                  <Label htmlFor="captacao">Captação na Obra (%)</Label>
+                  <Select value={String(percentualCaptação)} onValueChange={(v) => setPercentualCaptação(Number(v))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="25">25% (Padrão)</SelectItem>
+                      <SelectItem value="25">25%</SelectItem>
                       <SelectItem value="30">30%</SelectItem>
                       <SelectItem value="40">40%</SelectItem>
                       <SelectItem value="50">50%</SelectItem>
@@ -347,67 +318,30 @@ export default function SimuladorUnidadePage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Índice de Correção Monetária</Label>
+                  <Label>Índice</Label>
                   <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      variant={indiceSelecionado === 'INCC' ? 'default' : 'outline'}
-                      onClick={() => setIndiceSelecionado('INCC')}
-                      className={indiceSelecionado === 'INCC' ? 'bg-primary hover:bg-primary/90' : ''}
-                    >
-                      INCC
-                    </Button>
-                    <Button
-                      variant={indiceSelecionado === 'IPCA' ? 'default' : 'outline'}
-                      onClick={() => setIndiceSelecionado('IPCA')}
-                      className={indiceSelecionado === 'IPCA' ? 'bg-primary hover:bg-primary/90' : ''}
-                    >
-                      IPCA
-                    </Button>
+                    <Button variant={indiceSelecionado === 'INCC' ? 'default' : 'outline'} onClick={() => setIndiceSelecionado('INCC')}>INCC</Button>
+                    <Button variant={indiceSelecionado === 'IPCA' ? 'default' : 'outline'} onClick={() => setIndiceSelecionado('IPCA')}>IPCA</Button>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Base de Cálculo do Índice</Label>
-                  <Select 
-                    value={periodoMedia} 
-                    onValueChange={(val: any) => setPeriodoMedia(val)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
+                  <Label htmlFor="periodo">Período de Referência</Label>
+                  <Select value={periodoMedia} onValueChange={(v: any) => setPeriodoMedia(v)}>
+                    <SelectTrigger id="periodo"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="180m">
-                        Média 180 Meses {dadosIndiceAtuais && <span className="text-muted-foreground ml-1">({dadosIndiceAtuais.avg180.toFixed(3)}% a.m.)</span>}
-                      </SelectItem>
-                      <SelectItem value="12m">
-                        Média 12 Meses {dadosIndiceAtuais && <span className="text-muted-foreground ml-1">({dadosIndiceAtuais.avg12.toFixed(3)}% a.m.)</span>}
-                      </SelectItem>
-                      <SelectItem value="projection">Projeção Futura (Tendência)</SelectItem>
+                      <SelectItem value="180m">Média 180 Meses ({dadosAtuais?.avg180.toFixed(3)}% a.m.)</SelectItem>
+                      <SelectItem value="12m">Média 12 Meses ({dadosAtuais?.avg12.toFixed(3)}% a.m.)</SelectItem>
+                      <SelectItem value="projection">Projeção Futura</SelectItem>
                     </SelectContent>
                   </Select>
-                  
-                  {loadingIndices ? (
-                    <div className="text-xs text-blue-500 flex items-center gap-2 mt-2 bg-blue-50 p-2 rounded">
-                      <Loader2 className="h-3 w-3 animate-spin" /> Buscando índices oficiais...
+                  {dadosAtuais && (
+                    <div className="text-xs bg-muted p-2 rounded mt-2">
+                      <p className="font-semibold">Fonte: {dadosAtuais.source}</p>
+                      <p>Indicador: {dadosAtuais.indicator}</p>
+                      <p className="text-primary font-bold mt-1">Taxa: {taxaAplicada?.toFixed(3)}% a.m.</p>
                     </div>
-                  ) : dadosIndiceAtuais ? (
-                    <div className="text-xs bg-muted/50 p-3 rounded-md border mt-2 space-y-1.5">
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Fonte dos Dados:</span>
-                        <span className="font-medium text-foreground truncate max-w-[150px]" title={dadosIndiceAtuais.source}>{dadosIndiceAtuais.source}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Indicador:</span>
-                        <span className="font-medium text-foreground">{dadosIndiceAtuais.indicator}</span>
-                      </div>
-                      <div className="pt-2 border-t mt-2 flex justify-between items-center">
-                        <span className="font-semibold">Taxa Aplicada:</span>
-                        <span className="font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">
-                          {periodoMedia === '180m' ? dadosIndiceAtuais.avg180 : dadosIndiceAtuais.avg12}% a.m.
-                        </span>
-                      </div>
-                    </div>
-                  ) : null}
+                  )}
                 </div>
 
               </CardContent>
@@ -416,86 +350,64 @@ export default function SimuladorUnidadePage() {
 
           {/* Resultados */}
           <div className="lg:col-span-7">
-            <Card className="h-full flex flex-col shadow-lg border-primary/20 overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-primary/5 to-transparent border-b border-primary/10">
+            <Card className="h-full border-primary/20 shadow-lg">
+              <CardHeader className="bg-primary/5 border-b border-primary/10">
                 <CardTitle className="flex items-center gap-2 text-primary">
-                  <TrendingUp className="h-5 w-5" />
-                  Resultado da Simulação
+                  <TrendingUp className="h-5 w-5" /> Resultado
                 </CardTitle>
               </CardHeader>
-              <CardContent className="flex-1 overflow-auto p-6 space-y-6">
+              <CardContent className="p-6 space-y-6">
                 {resultadoSimulacao ? (
                   <>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="p-5 bg-green-50 dark:bg-green-950/20 rounded-xl border border-green-200 dark:border-green-900 shadow-sm">
-                        <p className="text-sm text-green-800 dark:text-green-200 font-medium mb-1 flex items-center gap-2">
-                          <DollarSign className="h-4 w-4" /> Entrada (Sinal)
-                        </p>
-                        <p className="text-2xl font-bold text-green-700 dark:text-green-400">
-                          R$ {resultadoSimulacao.entrada.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </p>
+                      <div className="p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200">
+                        <p className="text-sm text-green-800 dark:text-green-200 font-medium">Entrada (Sinal)</p>
+                        <p className="text-2xl font-bold text-green-700">{formatCurrency(resultadoSimulacao.entrada)}</p>
                       </div>
-                      <div className="p-5 bg-blue-50 dark:bg-blue-950/20 rounded-xl border border-blue-200 dark:border-blue-900 shadow-sm">
-                        <p className="text-sm text-blue-800 dark:text-blue-200 font-medium mb-1 flex items-center gap-2">
-                          <TrendingUp className="h-4 w-4" /> Total nas Obras
-                        </p>
-                        <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">
-                          R$ {resultadoSimulacao.totalObras.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </p>
+                      <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200">
+                        <p className="text-sm text-blue-800 dark:text-blue-200 font-medium">Total nas Obras</p>
+                        <p className="text-2xl font-bold text-blue-700">{formatCurrency(resultadoSimulacao.totalObras)}</p>
                       </div>
                     </div>
 
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-semibold text-lg text-foreground">Fluxo de Pagamentos (Obras)</h4>
-                        <span className="text-xs bg-primary text-primary-foreground px-2 py-1 rounded-full font-medium">
-                          {resultadoSimulacao.parcelasObras.length}x
-                        </span>
-                      </div>
-                      
-                      <div className="border rounded-lg overflow-hidden shadow-sm">
-                        <div className="max-h-[400px] overflow-y-auto bg-white dark:bg-slate-950">
-                          <Table>
-                            <TableHeader className="bg-muted/50 sticky top-0 z-10">
-                              <TableRow>
-                                <TableHead className="w-[70px] text-center font-bold">#</TableHead>
-                                <TableHead className="font-bold">Vencimento</TableHead>
-                                <TableHead className="text-right font-bold">Valor</TableHead>
+                    <div>
+                      <h4 className="font-semibold mb-3 flex justify-between">
+                        <span>Parcelas na Obra</span>
+                        <span className="text-xs bg-muted px-2 py-1 rounded-full self-center">{resultadoSimulacao.parcelasObras.length}x</span>
+                      </h4>
+                      <div className="border rounded-lg max-h-[350px] overflow-y-auto">
+                        <Table>
+                          <TableHeader className="sticky top-0 bg-muted/50">
+                            <TableRow>
+                              <TableHead className="w-16 text-center">#</TableHead>
+                              <TableHead>Vencimento</TableHead>
+                              <TableHead className="text-right">Valor</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {resultadoSimulacao.parcelasObras.map((p, i) => (
+                              <TableRow key={i}>
+                                <TableCell className="text-center text-muted-foreground">{i + 1}ª</TableCell>
+                                <TableCell>{new Date(p.vencimento).toLocaleDateString('pt-BR')}</TableCell>
+                                <TableCell className="text-right font-mono">{formatCurrency(p.valor)}</TableCell>
                               </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {resultadoSimulacao.parcelasObras.map((p, i) => (
-                                <TableRow key={i} className="hover:bg-muted/30 transition-colors">
-                                  <TableCell className="font-medium text-center text-muted-foreground text-sm">{i + 1}ª</TableCell>
-                                  <TableCell className="text-sm">{new Date(p.vencimento).toLocaleDateString('pt-BR')}</TableCell>
-                                  <TableCell className="text-right font-mono text-sm font-semibold text-foreground">
-                                    R$ {p.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
+                            ))}
+                          </TableBody>
+                        </Table>
                       </div>
                     </div>
                     
-                    <Alert className="bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 mt-4">
-                      <CheckCircle2 className="h-5 w-5 text-primary" />
-                      <AlertDescription className="ml-3 space-y-1">
-                        <p className="font-semibold text-foreground">Pós-Obra (Financiamento Bancário):</p>
-                        <p className="text-xl font-bold text-primary">
-                          Saldo Devedor: R$ {resultadoSimulacao.saldoDevedor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </p>
-                        <p className="text-xs text-muted-foreground pt-1">
-                          *Simulação baseada no índice <strong>{indiceSelecionado}</strong> ({periodoMedia === '180m' ? dadosIndiceAtuais?.avg180 : dadosIndiceAtuais?.avg12}% a.m.). Valores sujeitos a alteração contratual.
-                        </p>
+                    <Alert>
+                      <CheckCircle2 className="h-4 w-4 text-primary" />
+                      <AlertDescription className="ml-2">
+                        <p className="font-semibold">Saldo para Financiamento:</p>
+                        <p className="text-xl font-bold text-primary">{formatCurrency(resultadoSimulacao.saldoDevedor)}</p>
                       </AlertDescription>
                     </Alert>
                   </>
                 ) : (
-                  <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-muted-foreground space-y-4">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground/50" />
-                    <p>Calculando condições personalizadas...</p>
+                  <div className="h-64 flex items-center justify-center text-muted-foreground">
+                    <Loader2 className="animate-spin mr-2" /> Calculando...
                   </div>
                 )}
               </CardContent>
