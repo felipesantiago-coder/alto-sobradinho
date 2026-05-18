@@ -134,7 +134,8 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
 
     const nominalCaptureTarget = finalValue * (capturePct / 100)
     const defaultInterBaseValue = finalValue * 0.04
-    const MIN_MENSAL = 1000
+    // Removido o MIN_MENSAL fixo para respeitar a captação escolhida
+    // O valor mínimo será proporcional à captação selecionada
 
     // Calcular totais de pagamentos extras (anuais e semestrais)
     let totalExtraPaymentsNominal = 0
@@ -157,13 +158,13 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
     if (intermediariaCustomizada) {
       baseInterValue = parseFloat(customIntermediaria) || 0
       const remainingForMensais = nominalCaptureTarget - finalDownPayment - (baseInterValue * intermediarias.length) - totalExtraPaymentsNominal
-      baseMensalValue = Math.max(MIN_MENSAL, remainingForMensais / monthsToDelivery)
+      baseMensalValue = Math.max(0, remainingForMensais / monthsToDelivery)
     } else if (mensalCustomizada) {
-      baseMensalValue = Math.max(MIN_MENSAL, parseFloat(customMensal) || 0)
+      baseMensalValue = Math.max(0, parseFloat(customMensal) || 0)
       if (!intermediariaCustomizada) baseInterValue = defaultInterBaseValue
     } else {
       const remainingForMensais = nominalCaptureTarget - finalDownPayment - (baseInterValue * intermediarias.length) - totalExtraPaymentsNominal
-      baseMensalValue = Math.max(MIN_MENSAL, remainingForMensais / monthsToDelivery)
+      baseMensalValue = Math.max(0, remainingForMensais / monthsToDelivery)
     }
 
     const nominalMensalSum = baseMensalValue * monthsToDelivery
