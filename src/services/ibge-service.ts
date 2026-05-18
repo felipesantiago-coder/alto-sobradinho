@@ -1,6 +1,6 @@
 /**
  * Serviço para buscar índices econômicos do IBGE (INCC e IPCA)
- * Utiliza a API do IBGE ou fallback para dados em cache
+ * Utiliza a API SIDRA do IBGE para dados reais históricos
  */
 
 export interface IndexData {
@@ -21,14 +21,16 @@ const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 horas
 
 /**
  * Busca dados históricos do IBGE via API SIDRA
- * @param systemCode 636 = INCC, 643 = IPCA
+ * @param tableId 636 = INCC, 643 = IPCA
+ * @param periods Quantidade de períodos para buscar (180 = 15 anos)
  */
-async function fetchIBGEData(systemCode: number): Promise<IndexData[]> {
+async function fetchIBGEData(tableId: number, periods: number = 180): Promise<IndexData[]> {
   try {
-    // API SIDRA do IBGE - Tabela de Preços ao Consumidor Amplo
-    const response = await fetch(
-      `https://apisidra.ibge.gov.br/values/t/636/n${systemCode}/all/v/63?formato=json`
-    );
+    // API SIDRA do IBGE - busca os últimos 'periods' meses
+    // t=tabela, n=período (all), v=variável (63 = índice mensal), formato=json
+    const url = `https://apisidra.ibge.gov.br/values/t/${tableId}/n${tableId === 636 ? '636' : '643'}/all/v/63/p${periods}?formato=json`;
+    
+    const response = await fetch(url);
     
     if (!response.ok) {
       throw new Error(`Erro na API IBGE: ${response.status}`);
@@ -36,55 +38,24 @@ async function fetchIBGEData(systemCode: number): Promise<IndexData[]> {
     
     const data = await response.json();
     
-    // Estrutura da resposta SIDRA varia, adaptar conforme necessário
+    // Estrutura da resposta SIDRA: [metadados, {D3C: data, V: valor, ...}, ...]
     if (Array.isArray(data) && data.length > 1) {
       return data.slice(1).map((item: any) => ({
-        code: systemCode === 636 ? 'INCC' : 'IPCA',
+        code: tableId === 636 ? 'INCC' : 'IPCA',
         date: item.D3C || item.MC || '',
-        value: parseFloat(item.V.replace(',', '.')) || 0
-      }));
+        value: parseFloat(item.V?.replace(',', '.') || '0')
+      })).filter(d => d.value !== 0 && d.date !== '');
     }
     
     return [];
   } catch (error) {
-    console.warn('Falha ao buscar dados do IBGE, usando fallback:', error);
+    console.warn('Falha ao buscar dados do IBGE:', error);
     return [];
   }
 }
 
 /**
- * Alternativa: usa endpoint mais simples do Banco Central ou outras APIs
- */
-async function fetchFromAlternativeAPI(index: 'INCC' | 'IPCA'): Promise<IndexData[]> {
-  try {
-    // Fallback para API externa confiável (ex: HG Brasil, AwesomeAPI, etc.)
-    // Para demonstração, retornamos dados simulados baseados em médias recentes
-    const mockData: IndexData[] = [];
-    const today = new Date();
-    
-    // Dados aproximados dos últimos meses (substituir por API real quando disponível)
-    const baseValues = index === 'INCC' 
-      ? [0.45, 0.38, 0.52, 0.61, 0.49, 0.55, 0.42, 0.38, 0.51, 0.47, 0.53, 0.49]
-      : [0.39, 0.42, 0.56, 0.61, 0.46, 0.38, 0.41, 0.35, 0.44, 0.39, 0.43, 0.37];
-    
-    for (let i = 0; i < 12; i++) {
-      const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
-      mockData.push({
-        code: index,
-        date: date.toISOString().split('T')[0],
-        value: baseValues[i] || 0.45
-      });
-    }
-    
-    return mockData;
-  } catch (error) {
-    console.error('Erro na API alternativa:', error);
-    return [];
-  }
-}
-
-/**
- * Calcula média anualizada a partir de dados mensais
+ * Calcula média anualizada geométrica a partir de dados mensais
  */
 function calculateAnnualAverage(monthlyValues: number[]): number {
   if (monthlyValues.length === 0) return 0;
@@ -98,40 +69,30 @@ function calculateAnnualAverage(monthlyValues: number[]): number {
 }
 
 /**
- * Calcula média simples mensal
- */
-function calculateSimpleAverage(values: number[]): number {
-  if (values.length === 0) return 0;
-  const sum = values.reduce((a, b) => a + b, 0);
-  return parseFloat(((sum / values.length)).toFixed(2));
-}
-
-/**
  * Obtém estatísticas do índice com opções de período
  */
 export async function getIndexStats(index: 'INCC' | 'IPCA', deliveryDate?: Date): Promise<IndexStats> {
-  // Tentar cache primeiro
+  const tableId = index === 'INCC' ? 636 : 643;
   const cacheKey = index === 'INCC' ? CACHE_KEY_INCC : CACHE_KEY_IPCA;
-  const cached = localStorage.getItem(cacheKey);
   
+  // Tentar cache primeiro
+  const cached = localStorage.getItem(cacheKey);
   if (cached) {
     const { data, timestamp } = JSON.parse(cached);
-    if (Date.now() - timestamp < CACHE_DURATION) {
+    if (Date.now() - timestamp < CACHE_DURATION && data.length >= 12) {
       return processStats(data, deliveryDate);
     }
   }
+
+  // Buscar 180 meses (15 anos) de dados reais da API do IBGE
+  let rawData = await fetchIBGEData(tableId, 180);
   
-  // Buscar dados novos
-  let rawData: IndexData[] = [];
-  
-  // Tentar IBGE primeiro, depois fallback
-  rawData = await fetchIBGEData(index === 'INCC' ? 636 : 643);
-  
-  if (rawData.length === 0) {
-    rawData = await fetchFromAlternativeAPI(index);
+  // Se não conseguiu buscar dados suficientes, tenta novamente com menos períodos
+  if (rawData.length < 12) {
+    rawData = await fetchIBGEData(tableId, 12);
   }
-  
-  // Salvar em cache
+
+  // Salvar em cache se tiver dados válidos
   if (rawData.length > 0) {
     localStorage.setItem(cacheKey, JSON.stringify({
       data: rawData,
@@ -143,27 +104,30 @@ export async function getIndexStats(index: 'INCC' | 'IPCA', deliveryDate?: Date)
 }
 
 /**
- * Processa dados brutos e calcula estatísticas
+ * Processa dados brutos e calcula estatísticas para diferentes períodos
  */
 function processStats(data: IndexData[], deliveryDate?: Date): IndexStats {
+  // Valores padrão fallback caso não tenha dados
+  const defaultStats: IndexStats = {
+    average15Years: 7.44,
+    average12Months: 5.96,
+    projection: 5.50
+  };
+
   if (data.length === 0) {
-    // Valores padrão fallback
-    return {
-      average15Years: 7.44,
-      average12Months: 5.96,
-      projection: 5.50
-    };
+    return defaultStats;
   }
   
-  const sortedData = data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  // Ordenar por data (mais recente primeiro)
+  const sortedData = [...data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   const values = sortedData.map(d => d.value);
   
-  // Últimos 12 meses - apenas os 12 primeiros valores após ordenar (mais recentes)
+  // Últimos 12 meses: pega apenas os 12 primeiros (mais recentes)
   const last12Months = values.slice(0, Math.min(12, values.length));
   const average12Months = calculateAnnualAverage(last12Months);
   
-  // Últimos 15 anos (180 meses) - usa TODOS os dados disponíveis, não apenas os mais recentes
-  // Isso garante que sejam períodos DIFERENTES: 12m = últimos 12, 15a = média de todo o histórico
+  // Últimos 15 anos (180 meses): pega até 180 valores do histórico completo
+  // Isso garante que sejam períodos DIFERENTES!
   const last15Years = values.slice(0, Math.min(180, values.length));
   const average15Years = calculateAnnualAverage(last15Years);
   
@@ -177,10 +141,9 @@ function processStats(data: IndexData[], deliveryDate?: Date): IndexStats {
     );
     
     // Projeção baseada na tendência dos últimos 12 meses
-    // Calcula taxa mensal média e projeta
     const monthlyAvg = Math.pow(1 + average12Months / 100, 1/12) - 1;
-    // Aplica pequena margem de segurança na projeção (reduz 5-10%)
     const projectedAnnual = (Math.pow(1 + monthlyAvg, 12) - 1) * 100;
+    // Aplica margem de segurança de 5% na projeção
     projection = parseFloat((projectedAnnual * 0.95).toFixed(2));
   }
   
