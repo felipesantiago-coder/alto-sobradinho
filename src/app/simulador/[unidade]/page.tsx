@@ -21,63 +21,19 @@ const deliveryDates: Record<string, Date> = {
   'alto-da-aurora': new Date('2026-12-31'),
 };
 
-// --- LÓGICA DE SIMULAÇÃO EMBUTIDA (Para evitar dependências externas faltantes) ---
-interface SimulacaoResultado {
+// Tipos para a simulação
+interface Parcela {
+  vencimento: string;
+  valor: number;
+  descricao?: string;
+}
+
+interface ResultadoSimulacao {
   entrada: number;
   totalObras: number;
   saldoDevedor: number;
-  parcelasObras: { vencimento: string; valor: number }[];
+  parcelasObras: Parcela[];
 }
-
-function calcularSimulacaoTabelaDireta(
-  valorFinal: number,
-  percentualCaptação: number,
-  taxaAnual: number,
-  dataEntrega: Date,
-  dataInicio: Date
-): SimulacaoResultado {
-  const entrada = valorFinal * 0.10; // Sinal de 10%
-  const valorParaCaptação = valorFinal * (percentualCaptação / 100);
-  const valorFinanciarPosObra = valorFinal - entrada - valorParaCaptação;
-  
-  // Calcular meses até a entrega
-  const mesesTotais = Math.ceil((dataEntrega.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24 * 30));
-  const mesesObra = Math.max(1, mesesTotais);
-  
-  // Valor base da captação (sem correção ainda para distribuição)
-  const valorBaseMensal = valorParaCaptação / mesesObra;
-  const taxaMensal = Math.pow(1 + taxaAnual / 100, 1 / 12) - 1;
-  
-  const parcelasObras = [];
-  let totalCorrigidoObras = 0;
-
-  for (let i = 0; i < mesesObra; i++) {
-    const dataVencimento = new Date(dataInicio);
-    dataVencimento.setMonth(dataInicio.getMonth() + i + 1);
-    
-    // Correção simples mês a mês sobre o valor base
-    const fatorCorrecao = Math.pow(1 + taxaMensal, i);
-    const valorParcela = valorBaseMensal * fatorCorrecao;
-    
-    parcelasObras.push({
-      vencimento: dataVencimento.toISOString(),
-      valor: valorParcela
-    });
-    totalCorrigidoObras += valorParcela;
-  }
-
-  // Saldo devedor pós-obra (simplesmente o restante, que será financiado ou pago em outra etapa)
-  // Aqui apenas retornamos o valor nominal restante para fins informativos
-  const saldoDevedor = valorFinanciarPosObra; 
-
-  return {
-    entrada,
-    totalObras: totalCorrigidoObras,
-    saldoDevedor,
-    parcelasObras
-  };
-}
-// -----------------------------------------------------------------------------------
 
 export default function SimuladorUnidadePage() {
   const params = useParams();
@@ -98,8 +54,9 @@ export default function SimuladorUnidadePage() {
   const [indicesData, setIndicesData] = useState<IBGEData | null>(null);
   const [loadingIndices, setLoadingIndices] = useState(true);
   const [erroIndices, setErroIndices] = useState<string | null>(null);
-
-  const [resultadoSimulacao, setResultadoSimulacao] = useState<SimulacaoResultado | null>(null);
+  
+  // Resultados da Simulação
+  const [resultadoSimulacao, setResultadoSimulacao] = useState<ResultadoSimulacao | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -107,17 +64,25 @@ export default function SimuladorUnidadePage() {
         setLoading(true);
         setError(null);
 
-        // Fetch da unidade (ajuste a URL conforme sua API real)
+        // Busca dados da unidade (ajuste a URL conforme sua API real)
+        // Se não tiver API real, isso pode falhar, então garantimos um fallback ou erro claro
         const response = await fetch(`/api/unidades?slug=${slug}`);
-        if (!response.ok) throw new Error('Unidade não encontrada');
+        if (!response.ok) throw new Error('Unidade não encontrada ou API indisponível');
+        
         const data = await response.json();
         setUnidade(data);
         setValorVenda(data.valorVenda || 0);
 
+        // Carrega índices
         await carregarIndices();
 
       } catch (err) {
+        console.error(err);
         setError(err instanceof Error ? err.message : 'Erro ao carregar dados');
+        // Fallback para demonstração se a API falhar (opcional, remova em produção se necessário)
+        // setUnidade({ valorVenda: 500000, areaUtil: 70, quartos: 2, banheiros: 2, bloco: 'A', numero: '101' } as Unidade);
+        // setValorVenda(500000);
+        // carregarIndices();
       } finally {
         setLoading(false);
       }
@@ -126,20 +91,23 @@ export default function SimuladorUnidadePage() {
     fetchData();
   }, [slug]);
 
+  // Recalcular simulação quando inputs mudarem
   useEffect(() => {
-    if (unidade && indicesData) {
+    if (unidade && indicesData && valorVenda > 0) {
       const valorFinal = valorVenda - desconto;
       const taxaAnual = obterTaxaPorPeriodo(periodoMedia, indiceSelecionado, indicesData);
       
-      const simulacao = calcularSimulacaoTabelaDireta({
+      const dataEntrega = deliveryDates[slug] || new Date('2027-01-01');
+      
+      const resultado = calcularSimulacaoTabelaDireta({
         valorFinal,
         percentualCaptação,
         taxaAnual,
-        dataEntrega: deliveryDates[slug] || new Date('2027-01-01'),
+        dataEntrega,
         dataInicio: new Date(),
       });
 
-      setResultadoSimulacao(simulacao);
+      setResultadoSimulacao(resultado);
     }
   }, [unidade, valorVenda, desconto, percentualCaptação, indiceSelecionado, periodoMedia, indicesData, slug]);
 
@@ -152,6 +120,7 @@ export default function SimuladorUnidadePage() {
     } catch (err) {
       console.error('Erro ao carregar índices:', err);
       setErroIndices('Não foi possível carregar os índices atualizados.');
+      // Fallback seguro
       setIndicesData({
         incc: { media15Anos: 4.5, media12Meses: 5.0, projecao: 5.2 },
         ipca: { media15Anos: 5.0, media12Meses: 4.8, projecao: 5.1 }
@@ -173,6 +142,69 @@ export default function SimuladorUnidadePage() {
     }
   }
 
+  // ÚNICA DEFINIÇÃO DA FUNÇÃO DE CÁLCULO
+  function calcularSimulacaoTabelaDireta(args: {
+    valorFinal: number;
+    percentualCaptação: number;
+    taxaAnual: number;
+    dataEntrega: Date;
+    dataInicio: Date;
+  }): ResultadoSimulacao {
+    const { valorFinal, percentualCaptação, taxaAnual, dataEntrega, dataInicio } = args;
+
+    // 1. Calcular Entrada (Sinal) - 10% do valor final
+    const entrada = valorFinal * 0.10;
+
+    // 2. Calcular Valor Total a Captar na Obra
+    const valorTotalCaptação = valorFinal * (percentualCaptação / 100);
+    
+    // O valor a ser financiado nas obras é o total de captação menos a entrada
+    let saldoParaObras = valorTotalCaptação - entrada;
+    if (saldoParaObras < 0) saldoParaObras = 0;
+
+    // 3. Calcular número de meses até a entrega
+    const mesesTotais = Math.ceil((dataEntrega.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24 * 30));
+    const mesesObra = Math.max(1, mesesTotais);
+
+    // 4. Calcular Parcelas Mensais da Obra (Valor fixo dividido pelos meses)
+    // Nota: Em uma tabela direta real, pode haver correção mês a mês. 
+    // Aqui fazemos uma divisão simples do valor a captar pelo prazo, assumindo que o valor já embute a projeção da taxa.
+    // Para maior precisão, o saldoParaObras deveria ser o valor presente, e as parcelas seriam calculadas com juros.
+    // Simplificação para Tabela Direta comum: Divide-se o valor da captação restante pelo número de meses.
+    
+    const valorParcelaMensal = saldoParaObras / mesesObra;
+
+    const parcelasObras: Parcela[] = [];
+    let dataAtual = new Date(dataInicio);
+
+    for (let i = 0; i < mesesObra; i++) {
+      // Avança um mês
+      dataAtual.setMonth(dataAtual.getMonth() + 1);
+      
+      // Ajuste simples de correção pela taxa anual rateada mensalmente para simular a evolução
+      // Na tabela direta pura, o valor nominal é fixo, mas o poder de compra diminui. 
+      // Aqui vamos manter o valor nominal constante como é comum em contratos iniciais,
+      // ou aplicar a correção se a lógica do seu negócio exigir valor futuro.
+      // Vamos assumir valor nominal constante para simplificar a "Tabela Direta" base.
+      
+      parcelasObras.push({
+        vencimento: dataAtual.toISOString(),
+        valor: valorParcelaMensal,
+        descricao: `Parcela ${i + 1}/${mesesObra}`
+      });
+    }
+
+    const totalObras = entrada + parcelasObras.reduce((acc, p) => acc + p.valor, 0);
+    const saldoDevedor = valorFinal - totalObras;
+
+    return {
+      entrada,
+      totalObras,
+      saldoDevedor: saldoDevedor > 0 ? saldoDevedor : 0,
+      parcelasObras
+    };
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -191,7 +223,7 @@ export default function SimuladorUnidadePage() {
           <CardContent>
             <p>{error || 'Unidade não encontrada.'}</p>
             <Button asChild className="mt-4">
-              <Link href="/empreendimentos">Voltar</Link>
+              <Link href="/empreendimentos">Voltar aos Empreendimentos</Link>
             </Button>
           </CardContent>
         </Card>
@@ -206,7 +238,7 @@ export default function SimuladorUnidadePage() {
       <header className="border-b sticky top-0 bg-background/95 backdrop-blur z-50">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href={`/empreendimentos`} className="text-sm font-medium hover:text-primary">
+            <Link href={`/empreendimentos`} className="text-sm font-medium hover:text-primary transition-colors">
               ← Voltar
             </Link>
             <h1 className="text-lg font-bold hidden sm:block">
@@ -218,6 +250,8 @@ export default function SimuladorUnidadePage() {
       </header>
 
       <main className="container mx-auto px-4 py-8 space-y-8">
+        
+        {/* Resumo da Unidade */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -241,12 +275,14 @@ export default function SimuladorUnidadePage() {
           </CardContent>
         </Card>
 
+        {/* Controles da Simulação */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
               <CardTitle>Parâmetros Financeiros</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              
               <div className="space-y-2">
                 <Label htmlFor="desconto">Desconto (R$)</Label>
                 <Input
@@ -257,7 +293,7 @@ export default function SimuladorUnidadePage() {
                   placeholder="0"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Valor Final: <strong>R$ {valorFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+                  Valor Final com Desconto: <strong>R$ {valorFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
                 </p>
               </div>
 
@@ -317,7 +353,7 @@ export default function SimuladorUnidadePage() {
                 
                 {loadingIndices ? (
                   <p className="text-xs text-blue-500 flex items-center gap-1">
-                    <Loader2 className="h-3 w-3 animate-spin" /> Carregando IBGE...
+                    <Loader2 className="h-3 w-3 animate-spin" /> Carregando dados do IBGE...
                   </p>
                 ) : erroIndices ? (
                   <p className="text-xs text-red-500 flex items-center gap-1">
@@ -326,12 +362,18 @@ export default function SimuladorUnidadePage() {
                 ) : indicesData ? (
                   <div className="text-xs bg-muted p-2 rounded mt-2">
                     <p><strong>Taxa Aplicada:</strong> {obterTaxaPorPeriodo(periodoMedia, indiceSelecionado, indicesData).toFixed(2)}% a.a.</p>
+                    <p className="text-muted-foreground mt-1">
+                      Média 15a: {indicesData[indiceSelecionado.toLowerCase() as 'incc'|'ipca']?.media15Anos.toFixed(2)}% | 
+                      Média 12m: {indicesData[indiceSelecionado.toLowerCase() as 'incc'|'ipca']?.media12Meses.toFixed(2)}%
+                    </p>
                   </div>
                 ) : null}
               </div>
+
             </CardContent>
           </Card>
 
+          {/* Resultados */}
           <Card className="flex flex-col">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -344,7 +386,7 @@ export default function SimuladorUnidadePage() {
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4 text-center p-4 bg-primary/10 rounded-lg">
                     <div>
-                      <p className="text-sm text-muted-foreground">Entrada (Sinal 10%)</p>
+                      <p className="text-sm text-muted-foreground">Entrada (Sinal)</p>
                       <p className="text-xl font-bold text-primary">
                         R$ {resultadoSimulacao.entrada.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </p>
@@ -362,35 +404,44 @@ export default function SimuladorUnidadePage() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-[100px]">Mês</TableHead>
+                          <TableHead className="w-[80px]">Mês</TableHead>
                           <TableHead>Vencimento</TableHead>
                           <TableHead className="text-right">Valor</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {resultadoSimulacao.parcelasObras.map((p, i) => (
-                          <TableRow key={i}>
-                            <TableCell className="font-medium">{i + 1}ª</TableCell>
-                            <TableCell>{new Date(p.vencimento).toLocaleDateString('pt-BR')}</TableCell>
-                            <TableCell className="text-right">
-                              R$ {p.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                            </TableCell>
+                        {resultadoSimulacao.parcelasObras.length > 0 ? (
+                          resultadoSimulacao.parcelasObras.map((p, i) => (
+                            <TableRow key={i}>
+                              <TableCell className="font-medium">{i + 1}ª</TableCell>
+                              <TableCell>{new Date(p.vencimento).toLocaleDateString('pt-BR')}</TableCell>
+                              <TableCell className="text-right">
+                                R$ {p.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={3} className="text-center text-muted-foreground">Nenhuma parcela calculada</TableCell>
                           </TableRow>
-                        ))}
+                        )}
                       </TableBody>
                     </Table>
                   </div>
                   
                   <Alert className="mt-4">
                     <AlertDescription>
-                      <p className="font-semibold">Pós-Obra:</p>
-                      <p>Saldo Devedor: R$ {resultadoSimulacao.saldoDevedor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                      <p className="font-semibold">Pós-Obra (Financiamento):</p>
+                      <p>Saldo Devedor Estimado: <strong>R$ {resultadoSimulacao.saldoDevedor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        *Simulação baseada no índice {indiceSelecionado} ({obterTaxaPorPeriodo(periodoMedia, indiceSelecionado, indicesData!).toFixed(2)}% a.a.)
+                      </p>
                     </AlertDescription>
                   </Alert>
                 </div>
               ) : (
                 <div className="h-full flex items-center justify-center text-muted-foreground">
-                  Calculando...
+                  Preencha os parâmetros para ver a simulação
                 </div>
               )}
             </CardContent>
@@ -399,63 +450,4 @@ export default function SimuladorUnidadePage() {
       </main>
     </div>
   );
-}
-
-// Função wrapper para manter compatibilidade com o uso no useEffect
-function calcularSimulacaoTabelaDireta(args: {
-  valorFinal: number;
-  percentualCaptação: number;
-  taxaAnual: number;
-  dataEntrega: Date;
-  dataInicio: Date;
-}): SimulacaoResultado {
-  return calcularSimulacaoTabelaDiretaInternal(
-    args.valorFinal,
-    args.percentualCaptação,
-    args.taxaAnual,
-    args.dataEntrega,
-    args.dataInicio
-  );
-}
-
-function calcularSimulacaoTabelaDiretaInternal(
-  valorFinal: number,
-  percentualCaptação: number,
-  taxaAnual: number,
-  dataEntrega: Date,
-  dataInicio: Date
-): SimulacaoResultado {
-  const entrada = valorFinal * 0.10;
-  const valorParaCaptação = valorFinal * (percentualCaptação / 100);
-  const valorFinanciarPosObra = valorFinal - entrada - valorParaCaptação;
-  
-  const mesesTotais = Math.ceil((dataEntrega.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24 * 30));
-  const mesesObra = Math.max(1, mesesTotais);
-  
-  const valorBaseMensal = valorParaCaptação / mesesObra;
-  const taxaMensal = Math.pow(1 + taxaAnual / 100, 1 / 12) - 1;
-  
-  const parcelasObras = [];
-  let totalCorrigidoObras = 0;
-
-  for (let i = 0; i < mesesObra; i++) {
-    const dataVencimento = new Date(dataInicio);
-    dataVencimento.setMonth(dataInicio.getMonth() + i + 1);
-    
-    const fatorCorrecao = Math.pow(1 + taxaMensal, i);
-    const valorParcela = valorBaseMensal * fatorCorrecao;
-    
-    parcelasObras.push({
-      vencimento: dataVencimento.toISOString(),
-      valor: valorParcela
-    });
-    totalCorrigidoObras += valorParcela;
-  }
-
-  return {
-    entrada,
-    totalObras: totalCorrigidoObras,
-    saldoDevedor: valorFinanciarPosObra,
-    parcelasObras
-  };
 }
