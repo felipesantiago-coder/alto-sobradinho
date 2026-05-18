@@ -21,14 +21,14 @@ const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 horas
 
 /**
  * Busca dados históricos do IBGE via API SIDRA
- * @param tableId 636 = INCC, 643 = IPCA
+ * @param tableId 1737 = INCC-M, 643 = IPCA
  * @param periods Quantidade de períodos para buscar (180 = 15 anos)
  */
 async function fetchIBGEData(tableId: number, periods: number = 180): Promise<IndexData[]> {
   try {
-    // API SIDRA do IBGE - busca os últimos 'periods' meses
-    // t=tabela, n=período (all), v=variável (63 = índice mensal), formato=json
-    const url = `https://apisidra.ibge.gov.br/values/t/${tableId}/n${tableId === 636 ? '636' : '643'}/all/v/63/p${periods}?formato=json`;
+    // API SIDRA do IBGE - formato correto para séries históricas
+    // t=tabela, p=períodos, v=variável (63 = índice mensal), d=all (todos os períodos disponíveis)
+    const url = `https://apisidra.ibge.gov.br/values/t/${tableId}/p/${periods}/v/63/d/all?formato=json`;
     
     const response = await fetch(url);
     
@@ -38,18 +38,26 @@ async function fetchIBGEData(tableId: number, periods: number = 180): Promise<In
     
     const data = await response.json();
     
-    // Estrutura da resposta SIDRA: [metadados, {D3C: data, V: valor, ...}, ...]
+    // Estrutura da resposta SIDRA varia conforme tabela
+    // Para tabelas 1737 e 643, verificar estrutura real
     if (Array.isArray(data) && data.length > 1) {
-      return data.slice(1).map((item: any) => ({
-        code: tableId === 636 ? 'INCC' : 'IPCA',
-        date: item.D3C || item.MC || '',
-        value: parseFloat(item.V?.replace(',', '.') || '0')
-      })).filter(d => d.value !== 0 && d.date !== '');
+      return data.slice(1).map((item: any) => {
+        // Tentar diferentes formatos de data e valor
+        const dateValue = item.D3C || item.D2C || item.MC || item['D1N'] || '';
+        const rawValue = item.V || item['V'] || '0';
+        
+        return {
+          code: tableId === 1737 ? 'INCC' : 'IPCA',
+          date: dateValue,
+          value: parseFloat(String(rawValue).replace(',', '.') || '0')
+        };
+      }).filter(d => d.value !== 0 && d.date !== '' && !isNaN(d.value));
     }
     
     return [];
   } catch (error) {
     console.warn('Falha ao buscar dados do IBGE:', error);
+    // Retorna array vazio em vez de dados mockados
     return [];
   }
 }
@@ -72,7 +80,8 @@ function calculateAnnualAverage(monthlyValues: number[]): number {
  * Obtém estatísticas do índice com opções de período
  */
 export async function getIndexStats(index: 'INCC' | 'IPCA', deliveryDate?: Date): Promise<IndexStats> {
-  const tableId = index === 'INCC' ? 636 : 643;
+  // IDs corretos das tabelas SIDRA: 1737 = INCC-M, 643 = IPCA
+  const tableId = index === 'INCC' ? 1737 : 643;
   const cacheKey = index === 'INCC' ? CACHE_KEY_INCC : CACHE_KEY_IPCA;
   
   // Tentar cache primeiro
@@ -107,11 +116,12 @@ export async function getIndexStats(index: 'INCC' | 'IPCA', deliveryDate?: Date)
  * Processa dados brutos e calcula estatísticas para diferentes períodos
  */
 function processStats(data: IndexData[], deliveryDate?: Date): IndexStats {
-  // Valores padrão fallback caso não tenha dados
+  // Valores padrão fallback APENAS se não tiver dados reais
+  // Estes valores são usados apenas como último recurso
   const defaultStats: IndexStats = {
-    average15Years: 7.44,
-    average12Months: 5.96,
-    projection: 5.50
+    average15Years: 0,
+    average12Months: 0,
+    projection: 0
   };
 
   if (data.length === 0) {
