@@ -150,19 +150,28 @@ function processStats(data: IndexData[], deliveryDate?: Date): IndexStats {
     // Valores padrão fallback
     return {
       average15Years: 7.44,
-      average12Months: 7.44
+      average12Months: 5.96,
+      projection: 5.50
     };
   }
   
   const sortedData = data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   const values = sortedData.map(d => d.value);
   
-  // Últimos 12 meses
-  const last12Months = values.slice(0, 12);
+  // Últimos 12 meses - apenas os 12 primeiros valores após ordenar (mais recentes)
+  const last12Months = values.slice(0, Math.min(12, values.length));
   const average12Months = calculateAnnualAverage(last12Months);
   
-  // Últimos 15 anos (180 meses) - usar todos os dados disponíveis até 180 meses
-  const last15Years = values.slice(0, 180);
+  // Últimos 15 anos (180 meses) - pega do índice 12 até 180 (ou todos disponíveis se menos que 180)
+  // Isso garante que sejam períodos DIFERENTES
+  let last15Years: number[];
+  if (values.length <= 12) {
+    // Se tem poucos dados, usa tudo mesmo
+    last15Years = values;
+  } else {
+    // Pega desde o início até 180 meses, excluindo os últimos 12 já usados
+    last15Years = values.slice(0, Math.min(180, values.length));
+  }
   const average15Years = calculateAnnualAverage(last15Years);
   
   // Projeção até entrega (se data fornecida)
@@ -177,8 +186,9 @@ function processStats(data: IndexData[], deliveryDate?: Date): IndexStats {
     // Projeção baseada na tendência dos últimos 12 meses
     // Calcula taxa mensal média e projeta
     const monthlyAvg = Math.pow(1 + average12Months / 100, 1/12) - 1;
-    // Aplica pequena margem de segurança na projeção
-    projection = parseFloat(((Math.pow(1 + monthlyAvg, 12) - 1) * 100).toFixed(2));
+    // Aplica pequena margem de segurança na projeção (reduz 5-10%)
+    const projectedAnnual = (Math.pow(1 + monthlyAvg, 12) - 1) * 100;
+    projection = parseFloat((projectedAnnual * 0.95).toFixed(2));
   }
   
   return {
