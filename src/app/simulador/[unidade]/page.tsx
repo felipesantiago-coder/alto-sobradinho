@@ -76,11 +76,20 @@ export default function SimuladorPage({ params }: { params: { unidade: string } 
     const urlParams = new URLSearchParams(window.location.search)
     const valorVenda = urlParams.get('valorVenda')
     const empreendimento = urlParams.get('empreendimento')
+    const captureParam = urlParams.get('capturePct')
 
     if (valorVenda) {
       setSaleValue(valorVenda)
       const defaultSinal = parseFloat(valorVenda) * 0.10
       setDownPayment(defaultSinal.toFixed(2))
+    }
+
+    // Lê a porcentagem de captação da URL ou usa o padrão 30%
+    if (captureParam) {
+      const pct = parseInt(captureParam)
+      if (!isNaN(pct) && pct > 0 && pct <= 100) {
+        setCapturePct(pct)
+      }
     }
 
     if (empreendimento && deliveryDates[empreendimento]) {
