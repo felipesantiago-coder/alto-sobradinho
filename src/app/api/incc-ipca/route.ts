@@ -14,7 +14,6 @@ interface IndexData {
   source: string;
   indicator: string;
   isFallback: boolean;
-  lastUpdate?: string;
 }
 
 interface ApiResponse {
@@ -23,113 +22,76 @@ interface ApiResponse {
 }
 
 /**
- * CAMADA 1: Tentativa de extração direta da FGV IBRE (Fonte Oficial do INCC)
- * Usa um user-agent para simular navegador e evitar bloqueios simples.
+ * Busca dados de uma série do Bacen SGS com tratamento de erro robusto
  */
-async function fetchINCCFromFGV(): Promise<number[]> {
-  try {
-    // URL pública da tabela de índices da FGV
-    const response = await fetch('https://portal.fgv.br/sites/portal.fgv.br/files/inline-images/incc-m-variacoes-mensais.txt', {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept': 'text/plain'
-      },
-      cache: 'no-store'
-    });
-
-    if (!response.ok) throw new Error('FGV indisponível');
-
-    const text = await response.text();
-    const lines = text.split('\n');
-    const values: number[] = [];
-
-    // Parser simples para o formato de texto da FGV (Ano Mês Valor)
-    // Exemplo: 2023 01 0.52
-    lines.forEach(line => {
-      const parts = line.trim().split(/\s+/);
-      if (parts.length >= 3) {
-        const val = parseFloat(parts[2].replace(',', '.'));
-        if (!isNaN(val)) {
-          values.push(val);
-        }
-      }
-    });
-
-    // A FGV retorna do mais antigo para o mais recente. 
-    // Validamos se temos dados recentes suficientes.
-    if (values.length > 12) {
-      console.log('Dados INCC obtidos com sucesso via FGV.');
-      return values;
-    }
-    
-    throw new Error('Dados insuficientes da FGV');
-  } catch (error) {
-    console.warn('Falha na camada FGV, tentando Bacen...', error);
-    return [];
-  }
-}
-
-/**
- * CAMADA 2: Banco Central (SGS)
- * Tenta INCC-M (189), fallback para INCC-DI (4390)
- */
-async function fetchFromBacen(code: number): Promise<number[]> {
+async function fetchBacenSeries(code: number, label: string): Promise<number[]> {
   const today = new Date();
+  // Busca últimos 240 meses (20 anos) para garantir histórico suficiente
   const startDate = new Date();
-  startDate.setFullYear(today.getFullYear() - 20); // Pega 20 anos para garantir 180 meses
+  startDate.setFullYear(today.getFullYear() - 20);
 
   const formatDate = (d: Date) => d.toLocaleDateString('pt-BR');
+  
+  // URL da API do Banco Central
   const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${code}/dados?formato=json&dataInicial=${formatDate(startDate)}&dataFinal=${formatDate(today)}`;
 
   try {
+    // Timeout manual de 5 segundos para não travar a serverless function
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
     const res = await fetch(url, { 
-      headers: { 'User-Agent': 'AltoSobradinho-Simulator/1.0' },
+      headers: { 
+        'User-Agent': 'Mozilla/5.0 (AltoSobradinho-Simulator)',
+        'Accept': 'application/json'
+      },
+      signal: controller.signal,
       cache: 'no-store' 
     });
     
-    if (!res.ok) throw new Error(`Bacen HTTP ${res.status}`);
+    clearTimeout(timeoutId);
+    
+    if (!res.ok) {
+      throw new Error(`Bacen HTTP ${res.status} para ${label}`);
+    }
     
     const json = await res.json();
-    if (!Array.isArray(json) || json.length === 0) return [];
+    
+    if (!Array.isArray(json) || json.length === 0) {
+      return [];
+    }
 
-    // O Bacen retorna [{ data: "dd/mm/yyyy", valor: "0.45" }, ...]
-    // Ordenar por data é crucial pois a API nem sempre garante ordem estrita
-    const sorted = json.sort((a, b) => {
-      const [da, ma, ya] = a.data.split('/').map(Number);
-      const [db, mb, yb] = b.data.split('/').map(Number);
-      return new Date(ya, ma-1, da).getTime() - new Date(yb, mb-1, db).getTime();
-    });
-
-    return sorted
+    // Filtra e converte valores
+    const values = json
       .filter((item: any) => item.valor && item.valor.trim() !== '')
-      .map((item: any) => parseFloat(item.valor.replace(',', '.')));
+      .map((item: any) => {
+        // O Bacen retorna vírgula como decimal as vezes, dependendo da série, mas geralmente ponto.
+        // Vamos garantir a troca segura.
+        const valStr = item.valor.replace(',', '.');
+        return parseFloat(valStr);
+      })
+      .filter(v => !isNaN(v));
+
+    return values;
   } catch (error) {
-    console.warn(`Falha na série ${code} do Bacen:`, error);
+    console.error(`Erro ao buscar ${label} (${code}) no Bacen:`, error);
     return [];
   }
 }
 
 /**
- * Calcula a média aritmética dos ÚLTIMOS N valores do array.
- * Garante que estamos olhando para o final do array (dados mais recentes).
+ * Calcula a média aritmética dos últimos N meses
  */
 function calculateAverage(values: number[], count: number): number {
   if (values.length === 0) return 0;
   
-  // Pega os últimos 'count' elementos
+  // O Bacen retorna do mais antigo para o mais recente. Pegamos os últimos 'count'.
   const subset = values.slice(-count);
   if (subset.length === 0) return 0;
 
   const sum = subset.reduce((acc, val) => acc + val, 0);
   const avg = sum / subset.length;
   
-  // Validação de sanidade: Se a média for absurda (<0.1% ou >3%), algo está errado nos dados brutos
-  if (avg < 0.1 || avg > 3.0) {
-    console.warn(`Média suspeita detectada (${avg}), retornando 0 para forçar fallback seguro.`);
-    return 0;
-  }
-
   return Math.round(avg * 10000) / 10000;
 }
 
@@ -140,70 +102,88 @@ export async function GET() {
   }
 
   try {
-    // --- BUSCA INCC (Estratégia Híbrida) ---
-    let inccValues = await fetchINCCFromFGV(); // Tenta FGV primeiro
-    let inccSource = 'FGV IBRE (Oficial)';
-    let inccIndicator = 'INCC-M';
+    // --- BUSCA IPCA (Série 433) ---
+    const ipcaValues = await fetchBacenSeries(433, 'IPCA');
+    const ipcaAvg12 = calculateAverage(ipcaValues, 12);
+    const ipcaAvg180 = calculateAverage(ipcaValues, 180);
 
-    // Se FGV falhar, tenta Bacen
+    // --- BUSCA INCC ---
+    // Estratégia: O Bacen NÃO tem INCC-M (FGV) nativo na API pública fácil.
+    // Usaremos o INCC-DI (Série 4390) que é divulgado pelo Bacen e é muito próximo.
+    // Série 189 no Bacen muitas vezes falha ou é intermitente. Vamos forçar a 4390 (INCC-DI).
+    let inccValues = await fetchBacenSeries(4390, 'INCC-DI');
+    let inccSourceLabel = 'Bacen SGS (INCC-DI)';
+    let inccIndicator = 'INCC-DI';
+
+    // Se falhar o DI, tenta a série 189 (INCC-M) como último recurso oficial
     if (inccValues.length === 0) {
-      inccValues = await fetchFromBacen(189); // INCC-M no Bacen
-      inccSource = 'Bacen SGS (INCC-M)';
-      
-      // Se INCC-M falhar no Bacen, tenta INCC-DI
-      if (inccValues.length === 0) {
-        inccValues = await fetchFromBacen(4390);
-        inccSource = 'Bacen SGS (INCC-DI)';
-        inccIndicator = 'INCC-DI';
+      console.warn('INCC-DI falhou, tentando INCC-M (189)...');
+      inccValues = await fetchBacenSeries(189, 'INCC-M');
+      if (inccValues.length > 0) {
+        inccSourceLabel = 'Bacen SGS (INCC-M)';
+        inccIndicator = 'INCC-M';
       }
     }
 
     const inccAvg12 = calculateAverage(inccValues, 12);
     const inccAvg180 = calculateAverage(inccValues, 180);
 
-    // --- BUSCA IPCA (Bacen Série 433) ---
-    const ipcaValues = await fetchFromBacen(433);
-    const ipcaAvg12 = calculateAverage(ipcaValues, 12);
-    const ipcaAvg180 = calculateAverage(ipcaValues, 180);
-    const ipcaSource = ipcaValues.length > 0 ? 'Bacen SGS (IPCA)' : 'Fallback Histórico';
+    // --- VALIDAÇÃO DE SANIDADE ---
+    // Se os valores forem 0 ou absurdos (> 5% a.m.), consideramos falha na obtenção de dados reais
+    const isValid = (v: number) => v > 0.05 && v < 5.0;
 
-    // --- FALLBACK DE SEGURANÇA (Apenas se TUDO falhar) ---
-    // Valores baseados na média real de 2023-2024 para não quebrar a simulação
-    const safeIncc12 = inccAvg12 > 0 ? inccAvg12 : 0.4600; 
-    const safeIncc180 = inccAvg180 > 0 ? inccAvg180 : 0.4900;
-    const safeIpca12 = ipcaAvg12 > 0 ? ipcaAvg12 : 0.3900;
-    const safeIpca180 = ipcaAvg180 > 0 ? ipcaAvg180 : 0.4300;
+    let finalInccAvg12 = isValid(inccAvg12) ? inccAvg12 : 0;
+    let finalInccAvg180 = isValid(inccAvg180) ? inccAvg180 : 0;
+    let finalIpcaAvg12 = isValid(ipcaAvg12) ? ipcaAvg12 : 0;
+    let finalIpcaAvg180 = isValid(ipcaAvg180) ? ipcaAvg180 : 0;
 
-    const isFallback = (inccAvg12 === 0 || ipcaAvg12 === 0);
+    let inccIsFallback = finalInccAvg12 === 0;
+    let ipcaIsFallback = finalIpcaAvg12 === 0;
+
+    // --- FALLBACK DE SEGURANÇA (APENAS SE REALMENTE FALHAR) ---
+    if (inccIsFallback) {
+      console.warn('Dados INCC reais indisponíveis, usando fallback histórico seguro.');
+      finalInccAvg12 = 0.4600; 
+      finalInccAvg180 = 0.4800;
+      inccSourceLabel = 'Média Histórica Estimada (Fallback)';
+    }
+
+    if (ipcaIsFallback) {
+      console.warn('Dados IPCA reais indisponíveis, usando fallback histórico seguro.');
+      finalIpcaAvg12 = 0.3800;
+      finalIpcaAvg180 = 0.4200;
+      inccSourceLabel = 'Média Histórica Estimada (Fallback)';
+    }
 
     const response: ApiResponse = {
       incc: {
-        avg180: safeIncc180,
-        avg12: safeIncc12,
-        source: isFallback ? 'Estimativa Histórica (API Indisponível)' : inccSource,
+        avg180: finalInccAvg180,
+        avg12: finalInccAvg12,
+        source: inccSourceLabel,
         indicator: inccIndicator,
-        isFallback: isFallback,
-        lastUpdate: new Date().toLocaleDateString('pt-BR')
+        isFallback: inccIsFallback
       },
       ipca: {
-        avg180: safeIpca180,
-        avg12: safeIpca12,
-        source: isFallback ? 'Estimativa Histórica (API Indisponível)' : ipcaSource,
+        avg180: finalIpcaAvg180,
+        avg12: finalIpcaAvg12,
+        source: ipcaIsFallback ? 'Média Histórica Estimada (Fallback)' : 'Bacen SGS (IPCA)',
         indicator: 'IPCA',
-        isFallback: isFallback,
-        lastUpdate: new Date().toLocaleDateString('pt-BR')
+        isFallback: ipcaIsFallback
       }
     };
 
+    // Atualiza cache
     cache = { data: response, timestamp: Date.now() };
+
     return NextResponse.json(response);
 
   } catch (error) {
     console.error('Erro crítico na API de índices:', error);
-    // Retorno de emergência
+    
+    // Retorna fallback em caso de erro geral de execução
     return NextResponse.json({
-      incc: { avg180: 0.4900, avg12: 0.4600, source: 'Erro Sistema - Fallback', indicator: 'INCC', isFallback: true },
-      ipca: { avg180: 0.4300, avg12: 0.3900, source: 'Erro Sistema - Fallback', indicator: 'IPCA', isFallback: true }
+      incc: { avg180: 0.4800, avg12: 0.4600, source: 'Erro de Sistema - Fallback', indicator: 'INCC', isFallback: true },
+      ipca: { avg180: 0.4200, avg12: 0.3800, source: 'Erro de Sistema - Fallback', indicator: 'IPCA', isFallback: true }
     });
   }
 }
