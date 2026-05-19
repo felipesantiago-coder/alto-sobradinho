@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ThemeToggleSimple } from '@/components/theme-toggle-simple';
@@ -13,14 +13,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Switch } from '@/components/ui/switch'; // Certifique-se que este componente existe ou use um checkbox simples
-import { Loader2, TrendingUp, DollarSign, AlertCircle, CheckCircle2, Calendar, PlusCircle, Trash2 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch'; // Certifique-se de ter este componente ou use checkbox
+import { Loader2, TrendingUp, DollarSign, AlertCircle, CheckCircle2, Calendar, Plus, Trash2 } from 'lucide-react';
 
-// Datas de entrega estimadas por empreendimento
+// --- DATAS DE ENTREGA ATUALIZADAS ---
 const deliveryDates: Record<string, Date> = {
   'alto-da-alvorada': new Date('2027-03-31'),
-  'alto-da-aurora': new Date('2026-02-28'),
-  'alto-do-horizonte': new Date('2026-07-31'),
+  'alto-da-aurora': new Date('2029-02-28'),      // Corrigido: 28/02/2029
+  'alto-do-horizonte': new Date('2026-07-31'),   // Corrigido: 31/07/2026
 };
 
 interface IndiceData {
@@ -35,23 +35,32 @@ interface IndicesResponse {
   ipca: IndiceData;
 }
 
-interface Parcela {
+interface ParcelaExtra {
   id: string;
-  tipo: 'mensal' | 'extra' | 'entrada';
+  tipo: 'semestral' | 'anual';
+  dataVencimento: string; // ISO String
+  valorBase: number;      // Valor informado pelo usuário
+  valorCorrigido: number; // Valor após correção do índice
+}
+
+interface Parcela {
   vencimento: string;
   valor: number;
   descricao?: string;
-  isCorrigida?: boolean;
+  tipo: 'mensal' | 'extra';
+  idExtra?: string;
 }
 
 interface ResultadoSimulacao {
   entrada: number;
   totalObras: number;
   saldoDevedor: number;
-  parcelas: Parcela[];
-  resumoExtra: {
-    totalSemestraisAnuais: number;
-    qtdParcelasExtras: number;
+  parcelasObras: Parcela[];
+  resumoExtras: {
+    totalSemestrais: number;
+    totalAnuais: number;
+    qtdSemestrais: number;
+    qtdAnuais: number;
   };
 }
 
@@ -64,29 +73,29 @@ export default function SimuladorUnidadePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Estados Básicos
+  // Estados Financeiros Básicos
   const [valorVenda, setValorVenda] = useState(0);
   const [desconto, setDesconto] = useState(0);
   const [percentualCaptação, setPercentualCaptação] = useState(30);
+  
+  // Estados de Índice
   const [indiceSelecionado, setIndiceSelecionado] = useState<'INCC' | 'IPCA'>('INCC');
   const [periodoMedia, setPeriodoMedia] = useState<'180m' | '12m' | 'projection'>('12m');
-  
-  // Estados de Índices
   const [indicesData, setIndicesData] = useState<IndicesResponse | null>(null);
   const [loadingIndices, setLoadingIndices] = useState(true);
 
-  // Novos Estados para Personalização de Parcelas
-  const [usarValoresManuais, setUsarValoresManuais] = useState(false);
+  // Novos Estados para Personalização
   const [valorPrimeiraMensal, setValorPrimeiraMensal] = useState<number | ''>('');
-  
-  const [habilitarParcelasExtras, setHabilitarParcelasExtras] = useState(false);
-  const [tipoParcelaExtra, setTipoParcelaExtra] = useState<'semestral' | 'anual'>('semestral');
-  const [valorPrimeiraExtra, setValorPrimeiraExtra] = useState<number | ''>('');
-  const [dataPrimeiraExtra, setDataPrimeiraExtra] = useState<string>('');
+  const [usarParcelasExtras, setUsarParcelasExtras] = useState(false);
+  const [tipoExtra, setTipoExtra] = useState<'semestral' | 'anual'>('semestral');
+  const [valorPrimeiroExtra, setValorPrimeiroExtra] = useState<number | ''>('');
+  const [dataPrimeiroExtra, setDataPrimeiroExtra] = useState<string>('');
 
+  // Resultados
   const [resultadoSimulacao, setResultadoSimulacao] = useState<ResultadoSimulacao | null>(null);
+  const [empreendimentoSlug, setEmpreendimentoSlug] = useState<string>('');
 
-  // Carregar Dados Iniciais
+  // Carregamento Inicial
   useEffect(() => {
     async function fetchData() {
       try {
@@ -94,35 +103,44 @@ export default function SimuladorUnidadePage() {
         if (!slugParam) throw new Error('Unidade não especificada.');
 
         let unidadeEncontrada: Unidade | undefined;
+        let slugEmp = '';
         const slugsConhecidos = ['alto-da-alvorada', 'alto-da-aurora', 'alto-do-horizonte'];
-        const slugLower = slugParam.toLowerCase();
         
-        const slugDetectado = slugsConhecidos.find(s => slugLower.startsWith(s));
-        
-        if (slugDetectado) {
-          const codigoParte = slugParam.substring(slugDetectado.length).replace(/^[- ]+/, '');
-          const unidades = getUnidadesByEmpreendimento(slugDetectado);
-          unidadeEncontrada = unidades.find(u => 
-            u.unidade?.trim().toLowerCase() === codigoParte.trim().toLowerCase() || 
-            u.codigo?.toString() === codigoParte.trim()
+        // Busca robusta da unidade
+        for (const slug of slugsConhecidos) {
+          const unidades = getUnidadesByEmpreendimento(slug);
+          const found = unidades.find(u => 
+            u.unidade?.trim().toLowerCase() === slugParam.replace(slug, '').replace(/^[- ]+/, '').trim().toLowerCase() ||
+            u.codigo?.toString() === slugParam
           );
-        } else {
-          for (const slug of slugsConhecidos) {
-            const unidades = getUnidadesByEmpreendimento(slug);
-            unidadeEncontrada = unidades.find(u => u.unidade?.trim().toLowerCase() === slugParam.trim().toLowerCase());
-            if (unidadeEncontrada) break;
+          if (found) {
+            unidadeEncontrada = found;
+            slugEmp = slug;
+            break;
           }
         }
 
-        if (!unidadeEncontrada) throw new Error(`Unidade "${slugParam}" não encontrada.`);
+        if (!unidadeEncontrada) throw new Error('Unidade não encontrada.');
 
         setUnidade(unidadeEncontrada);
+        setEmpreendimentoSlug(slugEmp);
         setValorVenda(unidadeEncontrada.valorVenda || 0);
+
+        // Configurações iniciais de datas extras baseadas na data atual
+        const hoje = new Date();
+        const dataSemestral = new Date(hoje.setMonth(hoje.getMonth() + 6));
+        const dataAnual = new Date(hoje.setMonth(hoje.getMonth() + 6)); // Reset e +12
+        
+        // Ajuste fino para anual
+        const hojeReset = new Date();
+        const dataAnualCorreta = new Date(hojeReset.setMonth(hojeReset.getMonth() + 12));
+
+        setDataPrimeiroExtra(tipoExtra === 'semestral' ? dataSemestral.toISOString().split('T')[0] : dataAnualCorreta.toISOString().split('T')[0]);
+
         await carregarIndices();
 
       } catch (err) {
-        console.error(err);
-        setError(err instanceof Error ? err.message : 'Erro ao carregar dados.');
+        setError(err instanceof Error ? err.message : 'Erro ao carregar.');
       } finally {
         setLoading(false);
       }
@@ -130,318 +148,225 @@ export default function SimuladorUnidadePage() {
     fetchData();
   }, [slugParam]);
 
-  // Configurar datas padrão quando mudar o tipo de parcela extra
+  // Atualiza data padrão quando troca o tipo de extra
   useEffect(() => {
-    if (unidade && habilitarParcelasExtras) {
-      const hoje = new Date();
-      const mesesParaAdicionar = tipoParcelaExtra === 'semestral' ? 6 : 12;
-      const dataPadrao = new Date(hoje.setMonth(hoje.getMonth() + mesesParaAdicionar));
-      
-      // Formatar para YYYY-MM-DD para o input date
-      const isoString = dataPadrao.toISOString().split('T')[0];
-      setDataPrimeiraExtra(isoString);
-      
-      // Se não tiver valor manual, sugere um valor baseado na captação (opcional, aqui deixamos vazio para o usuário preencher)
-      if (valorPrimeiraExtra === '') {
-        // Sugestão inicial opcional: 5% do valor final
-        // setValorPrimeiraExtra(Math.round((valorVenda - desconto) * 0.05));
-      }
+    if (!unidade) return;
+    const hoje = new Date();
+    if (tipoExtra === 'semestral') {
+      const d = new Date(hoje.setMonth(hoje.getMonth() + 6));
+      setDataPrimeiroExtra(d.toISOString().split('T')[0]);
+    } else {
+      const d = new Date(hoje.setMonth(hoje.getMonth() + 12)); // Cuidado com overflow de mês no JS, ideal usar biblioteca date-fns
+      // Correção simples de overflow
+      const hojeBase = new Date();
+      const dAnual = new Date(hojeBase.getFullYear() + 1, hojeBase.getMonth(), hojeBase.getDate());
+      setDataPrimeiroExtra(dAnual.toISOString().split('T')[0]);
     }
-  }, [tipoParcelaExtra, habilitarParcelasExtras, unidade, valorVenda, desconto]);
+  }, [tipoExtra, unidade]);
+
+  // Recálculo da Simulação
+  useEffect(() => {
+    if (unidade && indicesData && valorVenda > 0) {
+      const valorFinal = valorVenda - desconto;
+      
+      // Seleção da Taxa
+      let taxaMensal = 0;
+      const dadosIndice = indiceSelecionado === 'INCC' ? indicesData.incc : indicesData.ipca;
+      if (periodoMedia === '180m') taxaMensal = dadosIndice.avg180;
+      else if (periodoMedia === '12m') taxaMensal = dadosIndice.avg12;
+      else taxaMensal = dadosIndice.avg12;
+
+      const dataEntrega = deliveryDates[empreendimentoSlug] || new Date('2027-01-01');
+
+      const resultado = calcularSimulacaoCompleto({
+        valorFinal,
+        percentualCaptação,
+        taxaMensal,
+        dataEntrega,
+        dataInicio: new Date(),
+        valorPrimeiraMensal: valorPrimeiraMensal === '' ? 0 : Number(valorPrimeiraMensal),
+        configuracaoExtras: usarParcelasExtras ? {
+          tipo: tipoExtra,
+          valorBase: valorPrimeiroExtra === '' ? 0 : Number(valorPrimeiroExtra),
+          dataPrimeira: new Date(dataPrimeiroExtra)
+        } : null
+      });
+
+      setResultadoSimulacao(resultado);
+    }
+  }, [unidade, valorVenda, desconto, percentualCaptação, indiceSelecionado, periodoMedia, indicesData, empreendimentoSlug, valorPrimeiraMensal, usarParcelasExtras, tipoExtra, valorPrimeiroExtra, dataPrimeiroExtra]);
 
   async function carregarIndices() {
     setLoadingIndices(true);
     try {
       const res = await fetch('/api/incc-ipca');
-      if (!res.ok) throw new Error('Falha na API');
-      const data: IndicesResponse = await res.json();
+      if (!res.ok) throw new Error('Falha API Índices');
+      const data = await res.json();
       setIndicesData(data);
     } catch (err) {
-      console.warn('Fallback de índices:', err);
+      console.warn('Fallback índices:', err);
       setIndicesData({
-        incc: { avg180: 0.46, avg12: 0.51, source: 'Fallback', indicator: 'INCC-M' },
-        ipca: { avg180: 0.42, avg12: 0.39, source: 'Fallback', indicator: 'IPCA' }
+        incc: { avg180: 0.46, avg12: 0.51 },
+        ipca: { avg180: 0.42, avg12: 0.39 }
       });
     } finally {
       setLoadingIndices(false);
     }
   }
 
-  // Lógica Principal de Cálculo
-  useEffect(() => {
-    if (!unidade || !indicesData || valorVenda === 0) return;
-
-    const valorFinal = valorVenda - desconto;
-    const dadosIndice = indiceSelecionado === 'INCC' ? indicesData.incc : indicesData.ipca;
-    
-    let taxaMensal = 0;
-    if (periodoMedia === '180m') taxaMensal = dadosIndice.avg180;
-    else if (periodoMedia === '12m') taxaMensal = dadosIndice.avg12;
-    else taxaMensal = dadosIndice.avg12;
-
-    // Determinar Data de Entrega
-    let dataEntrega = new Date('2027-01-01');
-    if (getUnidadesByEmpreendimento('alto-da-aurora').includes(unidade)) dataEntrega = deliveryDates['alto-da-aurora'];
-    else if (getUnidadesByEmpreendimento('alto-da-alvorada').includes(unidade)) dataEntrega = deliveryDates['alto-da-alvorada'];
-    else if (getUnidadesByEmpreendimento('alto-do-horizonte').includes(unidade)) dataEntrega = deliveryDates['alto-do-horizonte'];
-
-    const resultado = calcularSimulacaoAvancada({
-      valorFinal,
-      percentualCaptação,
-      taxaMensal,
-      dataEntrega,
-      dataInicio: new Date(),
-      configuracoes: {
-        usarValoresManuais,
-        valorPrimeiraMensal: Number(valorPrimeiraMensal) || 0,
-        habilitarExtras: habilitarParcelasExtras,
-        tipoExtra: tipoParcelaExtra,
-        valorPrimeiraExtra: Number(valorPrimeiraExtra) || 0,
-        dataPrimeiraExtra: dataPrimeiraExtra ? new Date(dataPrimeiraExtra + 'T12:00:00') : undefined
-      }
-    });
-
-    setResultadoSimulacao(resultado);
-  }, [unidade, valorVenda, desconto, percentualCaptação, indiceSelecionado, periodoMedia, indicesData, 
-      usarValoresManuais, valorPrimeiraMensal, habilitarParcelasExtras, tipoParcelaExtra, valorPrimeiraExtra, dataPrimeiraExtra]);
-
-  function calcularSimulacaoAvancada(args: {
+  function calcularSimulacaoCompleto(args: {
     valorFinal: number;
     percentualCaptação: number;
     taxaMensal: number;
     dataEntrega: Date;
     dataInicio: Date;
-    configuracoes: {
-      usarValoresManuais: boolean;
-      valorPrimeiraMensal: number;
-      habilitarExtras: boolean;
-      tipoExtra: 'semestral' | 'anual';
-      valorPrimeiraExtra: number;
-      dataPrimeiraExtra?: Date;
-    }
+    valorPrimeiraMensal: number;
+    configuracaoExtras: { tipo: 'semestral' | 'anual', valorBase: number, dataPrimeira: Date } | null;
   }): ResultadoSimulacao {
-    const { valorFinal, percentualCaptação, taxaMensal, dataEntrega, dataInicio, configuracoes } = args;
-    const parcelas: Parcela[] = [];
+    const { valorFinal, percentualCaptação, taxaMensal, dataEntrega, dataInicio, valorPrimeiraMensal, configuracaoExtras } = args;
 
-    // 1. Entrada (Sinal) - 10%
     const entrada = valorFinal * 0.10;
-    parcelas.push({
-      id: 'entrada',
-      tipo: 'entrada',
-      vencimento: dataInicio.toISOString(),
-      valor: entrada,
-      descricao: 'Sinal / Entrada'
-    });
-
-    // 2. Calcular Saldo para Obras
     const valorTotalCaptação = valorFinal * (percentualCaptação / 100);
     let saldoParaObras = valorTotalCaptação - entrada;
     if (saldoParaObras < 0) saldoParaObras = 0;
 
-    // 3. Prazo Total em Meses
     const diffTime = Math.abs(dataEntrega.getTime() - dataInicio.getTime());
     const mesesTotais = Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 30));
-    
-    // 4. Definir Parcelas Extras (Semestrais/Anuais)
-    let datasExtras: Date[] = [];
-    let valorBaseExtra = 0;
-    let totalPagoExtras = 0;
+    const mesesObra = Math.max(1, mesesTotais);
 
-    if (configuracoes.habilitarExtras && configuracoes.dataPrimeiraExtra && configuracoes.valorPrimeiraExtra > 0) {
-      const intervaloMeses = configuracoes.tipoExtra === 'semestral' ? 6 : 12;
-      let dataAtualExtra = new Date(configuracoes.dataPrimeiraExtra);
+    // Preparação das Parcelas Extras
+    const parcelasExtrasMap: Map<number, ParcelaExtra> = new Map(); // Key: mês relativo (1-based)
+    
+    if (configuracaoExtras && configuracaoExtras.valorBase > 0) {
+      const mesesInicioExtra = Math.round((configuracaoExtras.dataPrimeira.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24 * 30));
+      const intervalo = configuracaoExtras.tipo === 'semestral' ? 6 : 12;
       
-      // Verifica se a primeira data é válida (antes da entrega)
-      if (dataAtualExtra < dataEntrega) {
-        valorBaseExtra = configuracoes.valorPrimeiraExtra;
-        
-        while (dataAtualExtra < dataEntrega) {
-          datasExtras.push(new Date(dataAtualExtra));
-          dataAtualExtra.setMonth(dataAtualExtra.getMonth() + intervaloMeses);
+      let mesAtual = mesesInicioExtra;
+      let count = 0;
+      
+      while (mesAtual <= mesesObra) {
+        if (mesAtual >= 1) {
+          // Cálculo da correção composta até o mês X
+          const fatorCorrecao = Math.pow(1 + (taxaMensal / 100), mesAtual);
+          const valorCorrigido = configuracaoExtras.valorBase * fatorCorrecao;
+          
+          parcelasExtrasMap.set(mesAtual, {
+            id: `extra-${count}`,
+            tipo: configuracaoExtras.tipo,
+            dataVencimento: new Date(dataInicio.getTime() + (mesAtual * 30 * 24 * 60 * 60 * 1000)).toISOString(),
+            valorBase: configuracaoExtras.valorBase,
+            valorCorrigido
+          });
         }
+        mesAtual += intervalo;
+        count++;
       }
     }
 
-    // 5. Gerar Fluxo Mensal
+    // Geração das Parcelas Mensais e Integração
+    const parcelasObras: Parcela[] = [];
     let saldoDevedorObra = saldoParaObras;
     let dataAtual = new Date(dataInicio);
     
-    // Valor base da parcela mensal (se não for manual)
-    // Precisamos estimar quantas parcelas mensais "puras" cabem, mas como temos extras, 
-    // a lógica simplificada é: dividir o saldo restante pelos meses, mas subtrair o valor presente das extras.
-    // Para simplicidade neste simulador: Vamos tratar as extras como pagamentos que abatem o saldo no mês específico.
-    // A parcela mensal padrão cobre o restante.
+    // Define o valor base das mensais (se não houver personalização, divide o saldo restante proporcionalmente)
+    // Nota: Lógica simplificada. Em cenário real com extras, o valor das mensais pode precisar ser recalculado para bater o saldo exato.
+    // Aqui assumimos que o usuário define a primeira e as outras seguem um padrão ou o saldo é amortecido.
+    // Para este simulador: Se definir valor manual, usa ele. Se não, rateio simples do saldo disponível (ignorando correção futura para simplificar o input inicial).
     
-    // Cálculo aproximado do valor mensal padrão para garantir que zere no final:
-    // Saldo Total - PV(Parcelas Extras) = Valor a ser financiado nas mensais
-    // Vamos fazer iterativo mês a mês para maior precisão com correção composta.
-    
-    // Primeiro, calculamos o Valor Mensal Base necessário assumindo distribuição linear do saldo restante
-    // (Saldo Inicial - Soma dos Valores Nominais das Extras) / Meses Totais
-    // Nota: Isso é uma aproximação. O ideal seria uma equação financeira complexa, mas para tabela direta,
-    // geralmente define-se um valor fixo inicial e corrige-se o saldo.
-    
-    const somaNominalExtras = datasExtras.length * valorBaseExtra;
-    let saldoRestanteParaMensais = saldoParaObras - somaNominalExtras;
-    
-    // Se as extras cobrem tudo ou mais, mensais são zero (ou mínimas)
-    if (saldoRestanteParaMensais < 0) saldoRestanteParaMensais = 0;
-    
-    const valorMensalBase = saldoRestanteParaMensais > 0 && mesesTotais > 0 
-      ? saldoRestanteParaMensais / mesesTotais 
-      : 0;
+    let valorMensalBase = 0;
+    if (valorPrimeiraMensal > 0) {
+      valorMensalBase = valorPrimeiraMensal;
+    } else {
+      // Rateio simples se não houver input manual
+      valorMensalBase = saldoParaObras / mesesObra;
+    }
 
-    const valorMensalInicial = configuracoes.usarValoresManuais && configuracoes.valorPrimeiraMensal > 0 
-      ? configuracoes.valorPrimeiraMensal 
-      : valorMensalBase;
-
-    for (let i = 1; i <= mesesTotais; i++) {
+    for (let i = 1; i <= mesesObra; i++) {
       dataAtual.setMonth(dataAtual.getMonth() + 1);
-      if (dataAtual >= dataEntrega) break; // Segurança
-
-      // 1. Aplica Correção Monetária no Saldo Devedor
+      
+      // 1. Aplica Correção no Saldo Anterior
       const correcao = saldoDevedorObra * (taxaMensal / 100);
       saldoDevedorObra += correcao;
-
+      
       // 2. Verifica se há parcela extra neste mês
-      const isMesExtra = datasExtras.some(d => d.getMonth() === dataAtual.getMonth() && d.getFullYear() === dataAtual.getFullYear());
-      let valorPagoNoMes = 0;
-      let descricao = `Parcela ${i}/${mesesTotais}`;
-
-      if (isMesExtra) {
-        // Calcular valor da parcela extra corrigida até esta data
-        // Fórmula: ValorBase * (1 + taxa)^n_meses_decorridos_desde_a_primeira
-        // Simplificação: Como já estamos aplicando correção no saldo mês a mês, 
-        // podemos pagar o valor nominal da extra combinado, OU corrigir a extra também.
-        // O pedido diz: "automaticamente ajustada de acordo com a correção de INCC até a data de pagamento".
-        // Vamos calcular o fator de correção acumulado desde a data base da extra até agora.
-        // Mas para simplificar e manter coerência com o saldo: Pagaremos o valor base da extra + a parte proporcional mensal.
-        
-        // Abordagem escolhida: A parcela extra tem seu próprio valor corrigido individualmente.
-        // Fator de correção da extra = (1 + taxaMensal/100) ^ (meses decorridos desde a definição)
-        // Na prática, como o saldo já está sendo corrigido todo mês, pagar o valor NOMINAL da extra já abate o saldo corrigido.
-        // Porém, o usuário pediu para o valor DA PARCELA ser ajustado.
-        // Então: ValorExtraNesteMes = ValorBaseExtra * (1 + taxaMensal/100)^(meses desde a primeira extra)
-        
-        // Vamos identificar qual número da sequência extra é esta (1ª, 2ª, 3ª...)
-        const indexExtra = datasExtras.findIndex(d => d.getMonth() === dataAtual.getMonth() && d.getFullYear() === dataAtual.getFullYear());
-        const fatorCorrecaoExtra = Math.pow(1 + (taxaMensal / 100), indexExtra * (configuracoes.tipoExtra === 'semestral' ? 6 : 12));
-        const valorExtraCorrigido = valorBaseExtra * fatorCorrecaoExtra;
-
-        valorPagoNoMes += valorExtraCorrigido;
-        descricao += ` + ${configuracoes.tipoExtra.charAt(0).toUpperCase() + configuracoes.tipoExtra.slice(1)} (${indexExtra + 1}ª)`;
+      const extra = parcelasExtrasMap.get(i);
+      if (extra) {
+        saldoDevedorObra -= extra.valorCorrigido;
+        parcelasObras.push({
+          vencimento: extra.dataVencimento,
+          valor: extra.valorCorrigido,
+          descricao: `Parcela ${extra.tipo} (${i}º mês)`,
+          tipo: 'extra',
+          idExtra: extra.id
+        });
       }
 
-      // Adiciona a parte mensal
-      // Se for manual, usa o valor manual corrigido? Ou valor fixo?
-      // Geralmente na tabela direta, o valor nominal é fixo e o saldo que cresce.
-      // Vamos manter o valor nominal mensal constante (ou o manual) e deixar o saldo absorver a correção.
-      const valorMensalNesteMes = configuracoes.usarValoresManuais && configuracoes.valorPrimeiraMensal > 0
-        ? configuracoes.valorPrimeiraMensal // Mantém fixo o valor manual conforme solicitado implicitamente
-        : valorMensalBase; // Ou poderíamos corrigir este também. Vamos manter fixo para previsibilidade.
-
-      valorPagoNoMes += valorMensalNesteMes;
-
-      // Abater do saldo
-      saldoDevedorObra -= valorPagoNoMes;
+      // 3. Paga Parcela Mensal
+      // Se for a primeira e houver valor manual, usa ele. Senão, usa o base calculado.
+      // Nas subsequentes, mantém o valor nominal da primeira (comum em tabela direta) ou reajusta?
+      // Vamos manter o valor nominal constante para a parcela mensal padrão, salvo se fosse um modelo de amortização.
+      const valorPagoMensal = (i === 1 && valorPrimeiraMensal > 0) ? valorPrimeiraMensal : valorMensalBase;
+      
+      saldoDevedorObra -= valorPagoMensal;
       if (saldoDevedorObra < 0) saldoDevedorObra = 0;
 
-      parcelas.push({
-        id: `mes-${i}`,
-        tipo: 'mensal',
+      parcelasObras.push({
         vencimento: dataAtual.toISOString(),
-        valor: valorPagoNoMes,
-        descricao,
-        isCorrigida: isMesExtra // Marca se teve componente extra corrigido
+        valor: valorPagoMensal,
+        descricao: `Mensal ${i}/${mesesObra}`,
+        tipo: 'mensal'
       });
     }
 
-    const totalObras = entrada + parcelas.filter(p => p.tipo !== 'entrada').reduce((acc, p) => acc + p.valor, 0);
-    const saldoDevedorFinal = valorFinal - totalObras;
+    const totalPagoObras = entrada + parcelasObras.reduce((acc, p) => acc + p.valor, 0);
+    const saldoDevedorFinal = valorFinal - totalPagoObras;
 
+    const extrasList = Array.from(parcelasExtrasMap.values());
+    
     return {
       entrada,
-      totalObras,
+      totalObras: totalPagoObras,
       saldoDevedor: saldoDevedorFinal > 0 ? saldoDevedorFinal : 0,
-      parcelas,
-      resumoExtra: {
-        totalSemestraisAnuais: datasExtras.length * valorBaseExtra, // Valor nominal aproximado
-        qtdParcelasExtras: datasExtras.length
+      parcelasObras,
+      resumoExtras: {
+        totalSemestrais: extrasList.filter(e => e.tipo === 'semestral').reduce((acc, e) => acc + e.valorCorrigido, 0),
+        totalAnuais: extrasList.filter(e => e.tipo === 'anual').reduce((acc, e) => acc + e.valorCorrigido, 0),
+        qtdSemestrais: extrasList.filter(e => e.tipo === 'semestral').length,
+        qtdAnuais: extrasList.filter(e => e.tipo === 'anual').length,
       }
     };
   }
 
-  // Helpers de Formatação
-  const formatCurrency = (val: number) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  const formatDate = (iso: string) => new Date(iso).toLocaleDateString('pt-BR');
-
-  // Verificar se há tempo para parcelas extras
-  const mesesAteEntrega = useMemo(() => {
-    if (!unidade) return 0;
-    let dataEntrega = deliveryDates['alto-da-alvorada']; // Default
-    if (getUnidadesByEmpreendimento('alto-da-aurora').includes(unidade)) dataEntrega = deliveryDates['alto-da-aurora'];
-    else if (getUnidadesByEmpreendimento('alto-da-alvorada').includes(unidade)) dataEntrega = deliveryDates['alto-da-alvorada'];
-    else if (getUnidadesByEmpreendimento('alto-do-horizonte').includes(unidade)) dataEntrega = deliveryDates['alto-do-horizonte'];
-    
-    const diff = dataEntrega.getTime() - new Date().getTime();
-    return Math.ceil(diff / (1000 * 60 * 60 * 24 * 30));
-  }, [unidade]);
-
-  const permiteSemestral = mesesAteEntrega >= 6;
-  const permiteAnual = mesesAteEntrega >= 12;
-
-  // Ajuste automático se a opção selecionada não for mais válida
-  useEffect(() => {
-    if (habilitarParcelasExtras) {
-      if (tipoParcelaExtra === 'anual' && !permiteAnual) {
-        if (permiteSemestral) setTipoParcelaExtra('semestral');
-        else setHabilitarParcelasExtras(false);
-      }
-    }
-  }, [permiteSemestral, permiteAnual, tipoParcelaExtra, habilitarParcelasExtras]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-10 w-10 animate-spin text-primary" />
-          <p className="text-muted-foreground">Carregando simulador...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !unidade) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-        <Card className="w-full max-w-md border-destructive">
-          <CardHeader>
-            <CardTitle className="text-destructive flex items-center gap-2">
-              <AlertCircle className="h-5 w-5" /> Erro
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="mb-4">{error || 'Unidade não encontrada.'}</p>
-            <Button asChild className="w-full">
-              {/* Link corrigido para a página de empreendimentos */}
-              <Link href="/">Voltar ao Início</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  if (loading) return <div className="p-10 text-center"><Loader2 className="animate-spin mx-auto h-8 w-8"/></div>;
+  if (error || !unidade) return (
+    <Card className="m-4 border-destructive">
+      <CardHeader><CardTitle className="text-destructive">Erro</CardTitle></CardHeader>
+      <CardContent>
+        <p>{error}</p>
+        <Button asChild className="mt-4"><Link href="/empreendimentos">Voltar</Link></Button>
+      </CardContent>
+    </Card>
+  );
 
   const valorFinal = valorVenda - desconto;
   const dadosIndiceAtuais = indiceSelecionado === 'INCC' ? indicesData?.incc : indicesData?.ipca;
+  const taxaAtual = periodoMedia === '180m' ? dadosIndiceAtuais?.avg180 : dadosIndiceAtuais?.avg12;
+
+  // Cálculo de viabilidade de extras
+  const dataEntregaReal = deliveryDates[empreendimentoSlug];
+  const hoje = new Date();
+  const mesesRestantes = Math.ceil((dataEntregaReal.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24 * 30));
+  const permiteSemestral = mesesRestantes >= 6;
+  const permiteAnual = mesesRestantes >= 12;
 
   return (
     <div className="min-h-screen bg-background font-sans pb-20">
-      <header className="border-b sticky top-0 bg-background/95 backdrop-blur z-50">
+      <header className="border-b sticky top-0 bg-background/95 backdrop-blur z-50 shadow-sm">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/" className="text-sm font-medium hover:text-primary transition-colors">
-              ← Voltar ao Espelho
+            {/* Link corrigido para o espelho específico */}
+            <Link href={`/empreendimentos#${empreendimentoSlug}`} className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
+              ← Voltar para {empreendimentoSlug.replace(/-/g, ' ').toUpperCase()}
             </Link>
             <div className="h-6 w-px bg-border hidden sm:block"></div>
             <h1 className="text-lg font-bold hidden sm:block truncate">
@@ -459,19 +384,14 @@ export default function SimuladorUnidadePage() {
           <CardContent className="pt-6">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
-                <h2 className="text-2xl font-bold text-foreground mb-1">
-                  {unidade.bloco} / {unidade.unidade}
-                </h2>
-                <p className="text-muted-foreground">{unidade.areaUtil} m² • {unidade.quartos} Quartos • {unidade.banheiros} Banheiros</p>
+                <h2 className="text-2xl font-bold text-foreground">{unidade.bloco} • Unidade {unidade.unidade}</h2>
+                <p className="text-muted-foreground mt-1">{unidade.areaUtil} m² • {unidade.quartos} Quartos • {unidade.banheiros} Banheiros</p>
               </div>
               <div className="text-right">
                 <p className="text-sm text-muted-foreground">Valor de Tabela</p>
-                <p className="text-3xl font-bold text-primary">{formatCurrency(valorVenda)}</p>
-                {desconto > 0 && (
-                  <p className="text-sm text-green-600 font-medium mt-1">
-                    Com desconto: {formatCurrency(valorFinal)}
-                  </p>
-                )}
+                <p className="text-3xl font-bold text-primary">
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valorVenda)}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -479,12 +399,12 @@ export default function SimuladorUnidadePage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
-          {/* Controles */}
+          {/* Painel de Controle */}
           <div className="lg:col-span-5 space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5" /> Parâmetros Financeiros
+                  <DollarSign className="h-5 w-5" /> Parâmetros
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-5">
@@ -492,6 +412,10 @@ export default function SimuladorUnidadePage() {
                 <div className="space-y-2">
                   <Label htmlFor="desconto">Desconto (R$)</Label>
                   <Input id="desconto" type="number" value={desconto} onChange={(e) => setDesconto(Number(e.target.value))} className="font-mono" />
+                  <div className="flex justify-between text-xs font-medium">
+                    <span className="text-muted-foreground">Valor Final:</span>
+                    <span className="text-primary">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valorFinal)}</span>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -507,68 +431,98 @@ export default function SimuladorUnidadePage() {
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Índice de Correção</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button variant={indiceSelecionado === 'INCC' ? 'default' : 'outline'} onClick={() => setIndiceSelecionado('INCC')} className={indiceSelecionado === 'INCC' ? 'bg-primary' : ''}>INCC</Button>
-                    <Button variant={indiceSelecionado === 'IPCA' ? 'default' : 'outline'} onClick={() => setIndiceSelecionado('IPCA')} className={indiceSelecionado === 'IPCA' ? 'bg-primary' : ''}>IPCA</Button>
+                <div className="p-4 bg-muted/50 rounded-lg space-y-4 border">
+                  <div className="space-y-2">
+                    <Label>Índice de Correção</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button variant={indiceSelecionado === 'INCC' ? 'default' : 'outline'} size="sm" onClick={() => setIndiceSelecionado('INCC')}>INCC</Button>
+                      <Button variant={indiceSelecionado === 'IPCA' ? 'default' : 'outline'} size="sm" onClick={() => setIndiceSelecionado('IPCA')}>IPCA</Button>
+                    </div>
                   </div>
-                  <Select value={periodoMedia} onValueChange={(v: any) => setPeriodoMedia(v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="180m">Média 180 Meses ({dadosIndiceAtuais?.avg180.toFixed(3)}% a.m.)</SelectItem>
-                      <SelectItem value="12m">Média 12 Meses ({dadosIndiceAtuais?.avg12.toFixed(3)}% a.m.)</SelectItem>
-                      <SelectItem value="projection">Projeção Futura</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <div className="text-xs text-muted-foreground bg-muted p-2 rounded">
-                    Fonte: {dadosIndiceAtuais?.source} • Atualizado: {dadosIndiceAtuais?.lastUpdate}
+                  
+                  <div className="space-y-2">
+                    <Label>Período Base</Label>
+                    <Select value={periodoMedia} onValueChange={(v: any) => setPeriodoMedia(v)}>
+                      <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="180m">180 Meses ({dadosIndiceAtuais?.avg180.toFixed(3)}% a.m.)</SelectItem>
+                        <SelectItem value="12m">12 Meses ({dadosIndiceAtuais?.avg12.toFixed(3)}% a.m.)</SelectItem>
+                        <SelectItem value="projection">Projeção</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
                 <div className="pt-4 border-t space-y-4">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="valor-mensal-manual" className="cursor-pointer">Personalizar 1ª Parcela Mensal</Label>
-                    <Switch id="valor-mensal-manual" checked={usarValoresManuais} onCheckedChange={setUsarValoresManuais} />
+                    <Label htmlFor="mensal-custom" className="font-semibold">Personalizar 1ª Mensal</Label>
                   </div>
-                  {usarValoresManuais && (
-                    <div className="animate-in fade-in slide-in-from-top-2">
-                      <Label>Valor da 1ª Parcela (R$)</Label>
-                      <Input type="number" value={valorPrimeiraMensal} onChange={(e) => setValorPrimeiraMensal(Number(e.target.value))} placeholder="Ex: 1500.00" />
-                      <p className="text-xs text-muted-foreground mt-1">As demais seguirão o fluxo padrão.</p>
-                    </div>
-                  )}
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-muted-foreground text-sm">R$</span>
+                    <Input 
+                      id="mensal-custom" 
+                      type="number" 
+                      placeholder="Padrão (Rateio)" 
+                      className="pl-10 font-mono"
+                      value={valorPrimeiraMensal}
+                      onChange={(e) => setValorPrimeiraMensal(e.target.value ? Number(e.target.value) : '')}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">As demais manterão o valor nominal ou seguirão a correção do saldo.</p>
                 </div>
 
-                <div className="pt-4 border-t space-y-4 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg">
+                <div className="pt-4 border-t space-y-4">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="extras-switch" className="cursor-pointer font-semibold text-primary">Parcelas Extras (Semestral/Anual)</Label>
-                    <Switch id="extras-switch" checked={habilitarParcelasExtras} onCheckedChange={setHabilitarParcelasExtras} disabled={!permiteSemestral && !permiteAnual} />
+                    <div className="flex items-center gap-2">
+                      <Switch checked={usarParcelasExtras} onCheckedChange={setUsarParcelasExtras} id="extras-switch" />
+                      <Label htmlFor="extras-switch" className="font-semibold cursor-pointer">Adicionar Parcelas Extras</Label>
+                    </div>
                   </div>
-                  
-                  {(!permiteSemestral && !permiteAnual) && (
-                    <p className="text-xs text-amber-500">Prazo insuficiente para parcelas extras neste empreendimento.</p>
-                  )}
 
-                  {habilitarParcelasExtras && (permiteSemestral || permiteAnual) && (
-                    <div className="space-y-3 animate-in fade-in zoom-in-95">
+                  {usarParcelasExtras && (
+                    <div className="space-y-4 p-4 bg-primary/5 rounded-lg border border-primary/20 animate-in fade-in slide-in-from-top-2">
                       <div className="grid grid-cols-2 gap-2">
-                        <Button variant={tipoParcelaExtra === 'semestral' ? 'default' : 'outline'} size="sm" onClick={() => setTipoParcelaExtra('semestral')} disabled={!permiteSemestral}>Semestral</Button>
-                        <Button variant={tipoParcelaExtra === 'anual' ? 'default' : 'outline'} size="sm" onClick={() => setTipoParcelaExtra('anual')} disabled={!permiteAnual}>Anual</Button>
+                        <Button 
+                          variant={tipoExtra === 'semestral' ? 'default' : 'outline'} 
+                          size="sm" 
+                          onClick={() => setTipoExtra('semestral')}
+                          disabled={!permiteSemestral}
+                        >
+                          Semestral
+                        </Button>
+                        <Button 
+                          variant={tipoExtra === 'anual' ? 'default' : 'outline'} 
+                          size="sm" 
+                          onClick={() => setTipoExtra('anual')}
+                          disabled={!permiteAnual}
+                        >
+                          Anual
+                        </Button>
                       </div>
                       
-                      <div>
-                        <Label>Valor da 1ª Parcela Extra (R$)</Label>
-                        <Input type="number" value={valorPrimeiraExtra} onChange={(e) => setValorPrimeiraExtra(Number(e.target.value))} placeholder="Ex: 5000.00" />
+                      {!permiteSemestral && tipoExtra === 'semestral' && <p className="text-xs text-red-500">Prazo insuficiente para semestrais.</p>}
+                      {!permiteAnual && tipoExtra === 'anual' && <p className="text-xs text-red-500">Prazo insuficiente para anuais.</p>}
+
+                      <div className="space-y-2">
+                        <Label>Valor da 1ª Parcela Extra</Label>
+                        <Input 
+                          type="number" 
+                          value={valorPrimeiroExtra} 
+                          onChange={(e) => setValorPrimeiroExtra(e.target.value ? Number(e.target.value) : '')}
+                          placeholder="0.00"
+                        />
                       </div>
 
-                      <div>
-                        <Label>Data Prevista (1ª Ocorrência)</Label>
-                        <div className="relative">
-                          <Calendar className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                          <Input type="date" value={dataPrimeiraExtra} onChange={(e) => setDataPrimeiraExtra(e.target.value)} className="pl-8" />
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">As próximas ocorrerão a cada {tipoParcelaExtra === 'semestral' ? '6' : '12'} meses.</p>
+                      <div className="space-y-2">
+                        <Label>Data de Vencimento (1ª)</Label>
+                        <Input 
+                          type="date" 
+                          value={dataPrimeiroExtra} 
+                          onChange={(e) => setDataPrimeiroExtra(e.target.value)}
+                          min={hoje.toISOString().split('T')[0]}
+                          max={dataEntregaReal.toISOString().split('T')[0]}
+                        />
+                        <p className="text-xs text-muted-foreground">As próximas ocorrerão a cada {tipoExtra === 'semestral' ? '6' : '12'} meses.</p>
                       </div>
                     </div>
                   )}
@@ -583,7 +537,7 @@ export default function SimuladorUnidadePage() {
             <Card className="h-full flex flex-col shadow-lg border-primary/20">
               <CardHeader className="bg-primary/5 border-b border-primary/10">
                 <CardTitle className="flex items-center gap-2 text-primary">
-                  <TrendingUp className="h-5 w-5" /> Resultado da Simulação
+                  <TrendingUp className="h-5 w-5" /> Simulação Detalhada
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex-1 overflow-auto p-6 space-y-6">
@@ -592,55 +546,53 @@ export default function SimuladorUnidadePage() {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div className="p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-100">
                         <p className="text-xs text-green-800 font-medium mb-1">Entrada (Sinal)</p>
-                        <p className="text-xl font-bold text-green-700">{formatCurrency(resultadoSimulacao.entrada)}</p>
+                        <p className="text-xl font-bold text-green-700">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(resultadoSimulacao.entrada)}</p>
                       </div>
                       <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-100">
                         <p className="text-xs text-blue-800 font-medium mb-1">Total nas Obras</p>
-                        <p className="text-xl font-bold text-blue-700">{formatCurrency(resultadoSimulacao.totalObras)}</p>
+                        <p className="text-xl font-bold text-blue-700">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(resultadoSimulacao.totalObras)}</p>
                       </div>
-                      <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200">
-                        <p className="text-xs text-slate-600 dark:text-slate-400 font-medium mb-1">Saldo p/ Financiamento</p>
-                        <p className="text-xl font-bold text-slate-700 dark:text-slate-300">{formatCurrency(resultadoSimulacao.saldoDevedor)}</p>
+                      <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200">
+                        <p className="text-xs text-slate-800 font-medium mb-1">Saldo Pós-Obra</p>
+                        <p className="text-xl font-bold text-slate-700">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(resultadoSimulacao.saldoDevedor)}</p>
                       </div>
                     </div>
 
-                    {resultadoSimulacao.resumoExtra.qtdParcelasExtras > 0 && (
-                      <Alert className="bg-indigo-50 dark:bg-indigo-950/20 border-indigo-200">
-                        <PlusCircle className="h-4 w-4 text-indigo-600" />
-                        <AlertDescription className="ml-2 text-indigo-900 dark:text-indigo-200">
-                          Foram incluídas <strong>{resultadoSimulacao.resumoExtra.qtdParcelasExtras} parcelas {tipoParcelaExtra}s</strong> com correção automática aplicada.
+                    {resultadoSimulacao.resumoExtras.qtdSemestrais > 0 || resultadoSimulacao.resumoExtras.qtdAnuais > 0 ? (
+                      <Alert className="bg-indigo-50 border-indigo-200">
+                        <CheckCircle2 className="h-4 w-4 text-indigo-600" />
+                        <AlertDescription className="ml-2 text-indigo-900">
+                          Foram incluídas <strong>{resultadoSimulacao.resumoExtras.qtdSemestrais} parcelas semestrais</strong> e <strong>{resultadoSimulacao.resumoExtras.qtdAnuais} anuais</strong> com correção aplicada.
                         </AlertDescription>
                       </Alert>
-                    )}
+                    ) : null}
 
                     <div>
                       <h4 className="font-semibold text-lg mb-3 flex items-center justify-between">
                         Fluxo de Pagamentos
-                        <span className="text-xs bg-muted px-2 py-1 rounded-full text-muted-foreground">{resultadoSimulacao.parcelas.length} lançamentos</span>
+                        <span className="text-xs bg-muted px-2 py-1 rounded-full">{resultadoSimulacao.parcelasObras.length} lançamentos</span>
                       </h4>
-                      
                       <div className="border rounded-lg overflow-hidden">
                         <div className="max-h-[500px] overflow-y-auto">
                           <Table>
                             <TableHeader className="bg-muted/50 sticky top-0 z-10">
                               <TableRow>
-                                <TableHead className="w-[100px] text-center">Vencimento</TableHead>
-                                <TableHead>Descrição</TableHead>
+                                <TableHead className="w-[100px] text-center">Tipo</TableHead>
+                                <TableHead>Vencimento</TableHead>
                                 <TableHead className="text-right">Valor</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {resultadoSimulacao.parcelas.map((p, i) => (
-                                <TableRow key={p.id} className={p.isCorrigida ? 'bg-indigo-50/50 dark:bg-indigo-950/10' : ''}>
-                                  <TableCell className="text-center text-sm text-muted-foreground">
-                                    {formatDate(p.vencimento)}
+                              {resultadoSimulacao.parcelasObras.map((p, i) => (
+                                <TableRow key={i} className={p.tipo === 'extra' ? 'bg-indigo-50/50 dark:bg-indigo-950/10' : ''}>
+                                  <TableCell className="text-center">
+                                    <span className={`text-xs px-2 py-1 rounded-full ${p.tipo === 'extra' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-600'}`}>
+                                      {p.tipo === 'extra' ? 'Extra' : 'Mensal'}
+                                    </span>
                                   </TableCell>
-                                  <TableCell className="font-medium text-sm">
-                                    {p.descricao}
-                                    {p.isCorrigida && <span className="ml-2 text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">Corrigida</span>}
-                                  </TableCell>
-                                  <TableCell className="text-right font-mono text-sm">
-                                    {formatCurrency(p.valor)}
+                                  <TableCell>{new Date(p.vencimento).toLocaleDateString('pt-BR')}</TableCell>
+                                  <TableCell className="text-right font-mono font-medium">
+                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(p.valor)}
                                   </TableCell>
                                 </TableRow>
                               ))}
@@ -649,22 +601,10 @@ export default function SimuladorUnidadePage() {
                         </div>
                       </div>
                     </div>
-                    
-                    <Alert>
-                      <CheckCircle2 className="h-4 w-4 text-primary" />
-                      <AlertDescription className="ml-2">
-                        <p className="font-semibold">Simulação concluída com sucesso.</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Data de entrega considerada: {deliveryDates[Object.keys(deliveryDates).find(k => getUnidadesByEmpreendimento(k).includes(unidade!)) || 'alto-da-alvorada']?.toLocaleDateString('pt-BR')}.
-                          Os valores das parcelas extras foram reajustados pelo índice {indiceSelecionado} acumulado até a data de cada vencimento.
-                        </p>
-                      </AlertDescription>
-                    </Alert>
                   </>
                 ) : (
-                  <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-muted-foreground">
-                    <Loader2 className="h-8 w-8 animate-spin mb-2" />
-                    <p>Calculando fluxo personalizado...</p>
+                  <div className="h-64 flex items-center justify-center text-muted-foreground">
+                    <Loader2 className="animate-spin h-8 w-8" />
                   </div>
                 )}
               </CardContent>
