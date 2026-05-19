@@ -282,8 +282,6 @@ export default function SimuladorUnidadePage() {
       if (dataBase < hoje) dataBase.setTime(hoje.getTime());
 
       let dataProximaExtra = new Date(dataBase);
-      // Ajuste inicial dependendo do tipo (se a data base já for o vencimento ou referência)
-      // Assumindo que o usuário escolheu a data do PRIMEIRO vencimento extra
       
       while (dataProximaExtra < dataEntrega) {
         // Regra dos 3 meses antes da entrega
@@ -322,7 +320,7 @@ export default function SimuladorUnidadePage() {
     setResultadoSimulacao({
       entrada: parseFloat(entrada.toFixed(2)),
       totalObras: parseFloat(totalCaptação.toFixed(2)),
-      saldoDevedor: parseFloat(saldoParaObras.toFixed(2)), // Simplificado para exibição
+      saldoDevedor: parseFloat(saldoParaObras.toFixed(2)),
       parcelas: parcelas
     });
   }
@@ -364,8 +362,9 @@ export default function SimuladorUnidadePage() {
       <header className="border-b sticky top-0 bg-background/95 backdrop-blur z-50">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/empreendimentos" className="text-sm font-medium hover:text-primary transition-colors">
-              ← Voltar
+            {/* CORREÇÃO AQUI: Link apontando para a Home '/' */}
+            <Link href="/" className="text-sm font-medium hover:text-primary transition-colors">
+              ← Voltar aos Empreendimentos
             </Link>
             <h1 className="text-lg font-bold hidden sm:block truncate">
               {unidade.bloco} - {unidade.unidade}
