@@ -19,8 +19,8 @@ import { Loader2, TrendingUp, DollarSign, AlertCircle, CheckCircle2, Calendar, P
 // Datas de entrega estimadas por empreendimento
 const deliveryDates: Record<string, Date> = {
   'alto-da-alvorada': new Date('2027-03-31'),
-  'alto-da-aurora': new Date('2026-12-31'),
-  'alto-do-horizonte': new Date('2027-06-30'),
+  'alto-da-aurora': new Date('2026-02-28'),
+  'alto-do-horizonte': new Date('2026-07-31'),
 };
 
 interface IndiceData {
