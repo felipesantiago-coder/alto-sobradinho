@@ -14,12 +14,12 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, TrendingUp, DollarSign, AlertCircle, CheckCircle2, Calendar, Info } from 'lucide-react';
+import { Loader2, TrendingUp, DollarSign, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 
-// --- DATAS DE ENTREGA ATUALIZADAS ---
+// --- DATAS DE ENTREGA ATUALIZADAS E CORRETAS ---
 const deliveryDates: Record<string, Date> = {
   'alto-da-alvorada': new Date('2027-03-31'),
-  'alto-da-aurora': new Date('2029-02-28'),
+  'alto-da-aurora': new Date('2029-02-28'), // Corrigido para 2029
   'alto-do-horizonte': new Date('2026-07-31'),
 };
 
@@ -60,6 +60,7 @@ export default function SimuladorUnidadePage() {
   const [unidade, setUnidade] = useState<Unidade | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [slugEmpreendimentoDetectado, setSlugEmpreendimentoDetectado] = useState<string>(''); // Estado para guardar o slug correto
   
   // Estados do Simulador
   const [valorVenda, setValorVenda] = useState(0);
@@ -97,12 +98,13 @@ export default function SimuladorUnidadePage() {
 
         if (!slugParam) throw new Error('Unidade não especificada.');
 
-        // Busca unidade nos dados estáticos
         let unidadeEncontrada: Unidade | undefined;
+        let slugDetectado = '';
         const slugsConhecidos = ['alto-da-alvorada', 'alto-da-aurora', 'alto-do-horizonte'];
         const slugLower = slugParam.toLowerCase();
         
-        const slugDetectado = slugsConhecidos.find(s => slugLower.startsWith(s));
+        // 1. Tentativa de detecção por prefixo
+        slugDetectado = slugsConhecidos.find(s => slugLower.startsWith(s)) || '';
         
         if (slugDetectado) {
           const codigoParte = slugParam.substring(slugDetectado.length).replace(/^[- ]+/, '');
@@ -111,25 +113,31 @@ export default function SimuladorUnidadePage() {
             u.unidade?.trim().toLowerCase() === codigoParte.trim().toLowerCase() || 
             u.codigo?.toString() === codigoParte.trim()
           );
-        } else {
+        } 
+        
+        // 2. Fallback: Busca global se falhou ou não tinha prefixo claro
+        if (!unidadeEncontrada) {
           for (const slug of slugsConhecidos) {
             const unidades = getUnidadesByEmpreendimento(slug);
             unidadeEncontrada = unidades.find(u => u.unidade?.trim().toLowerCase() === slugParam.trim().toLowerCase());
-            if (unidadeEncontrada) break;
+            if (unidadeEncontrada) {
+              slugDetectado = slug; // Garante que o slug correto seja capturado mesmo na busca global
+              break;
+            }
           }
         }
 
         if (!unidadeEncontrada) throw new Error(`Unidade "${slugParam}" não encontrada.`);
+        if (!slugDetectado) throw new Error('Não foi possível identificar o empreendimento desta unidade.');
 
         setUnidade(unidadeEncontrada);
+        setSlugEmpreendimentoDetectado(slugDetectado); // Salva o slug correto para uso no cálculo
         setValorVenda(unidadeEncontrada.valorVenda || 0);
 
         // Configura datas base para parcelas extras
         const hoje = new Date();
         const dSemestral = new Date(hoje.getFullYear(), hoje.getMonth() + 6, hoje.getDate());
-        const dAnual = new Date(hoje.getFullYear(), hoje.getMonth() + 12, hoje.getDate());
         
-        // Define padrão como semestral
         setDataBaseParcelaExtra(dSemestral.toISOString().split('T')[0]);
         setValorBaseParcelaExtra(0);
 
@@ -147,13 +155,15 @@ export default function SimuladorUnidadePage() {
 
   // Recálculo automático
   useEffect(() => {
-    if (!unidade || !indicesData) return;
+    // IMPORTANTE: Agora usamos o estado slugEmpreendimentoDetectado para pegar a data correta
+    if (!unidade || !indicesData || !slugEmpreendimentoDetectado) return;
 
-    // Determina data de entrega
-    let dataEntrega = new Date('2027-01-01');
-    if (getUnidadesByEmpreendimento('alto-da-aurora').includes(unidade)) dataEntrega = deliveryDates['alto-da-aurora'];
-    else if (getUnidadesByEmpreendimento('alto-da-alvorada').includes(unidade)) dataEntrega = deliveryDates['alto-da-alvorada'];
-    else if (getUnidadesByEmpreendimento('alto-do-horizonte').includes(unidade)) dataEntrega = deliveryDates['alto-do-horizonte'];
+    const dataEntrega = deliveryDates[slugEmpreendimentoDetectado];
+    
+    if (!dataEntrega) {
+      console.error("Data de entrega não encontrada para o slug:", slugEmpreendimentoDetectado);
+      return;
+    }
 
     const hoje = new Date();
     
@@ -171,14 +181,14 @@ export default function SimuladorUnidadePage() {
     dataPrimeiraAnual.setMonth(dataPrimeiraAnual.getMonth() + 12);
     setTemEspacoAnual(dataPrimeiraAnual < limiteMinimoExtra);
 
-    // Desliga switch se não houver mais espaço para o tipo selecionado
+    // Desliga switch se não houver mais espaço
     if (habilitarParcelasExtras) {
       if (tipoParcelaExtra === 'semestral' && !temEspacoSemestral) setHabilitarParcelasExtras(false);
       if (tipoParcelaExtra === 'anual' && !temEspacoAnual) setHabilitarParcelasExtras(false);
     }
 
     calcularSimulacao(dataEntrega);
-  }, [unidade, valorVenda, desconto, percentualCaptação, indiceSelecionado, periodoMedia, indicesData, habilitarParcelasExtras, tipoParcelaExtra, valorBaseParcelaExtra, dataBaseParcelaExtra, valorPrimeiraMensal, temEspacoSemestral, temEspacoAnual]);
+  }, [unidade, valorVenda, desconto, percentualCaptação, indiceSelecionado, periodoMedia, indicesData, habilitarParcelasExtras, tipoParcelaExtra, valorBaseParcelaExtra, dataBaseParcelaExtra, valorPrimeiraMensal, temEspacoSemestral, temEspacoAnual, slugEmpreendimentoDetectado]);
 
   async function carregarIndices() {
     setLoadingIndices(true);
@@ -187,7 +197,7 @@ export default function SimuladorUnidadePage() {
       if (!res.ok) throw new Error('Falha na conexão');
       const data: IndicesResponse = await res.json();
       
-      // Sanitização de segurança para evitar valores absurdos
+      // Sanitização de segurança
       const sanitize = (v: number) => (v > 0.05 && v < 3.0) ? v : 0; 
       
       setIndicesData({
@@ -223,7 +233,6 @@ export default function SimuladorUnidadePage() {
 
     // 3. Prazo em Meses
     const hoje = new Date();
-    // Cálculo preciso de diferença de meses
     const diffAnos = dataEntrega.getFullYear() - hoje.getFullYear();
     const diffMeses = diffAnos * 12 + (dataEntrega.getMonth() - hoje.getMonth());
     const mesesTotais = Math.max(1, diffMeses);
@@ -234,27 +243,21 @@ export default function SimuladorUnidadePage() {
     const valorMensalPadrao = saldoParaObras / mesesTotais;
     const primeiraMensalDefinida = typeof valorPrimeiraMensal === 'number' && valorPrimeiraMensal > 0 ? valorPrimeiraMensal : valorMensalPadrao;
     
-    // Ajuste do saldo restante
     let saldoRestanteParaDivisao = saldoParaObras - primeiraMensalDefinida;
     if (saldoRestanteParaDivisao < 0) saldoRestanteParaDivisao = 0;
     
     const mesesRestantes = mesesTotais - 1;
     const valorMensalRestante = mesesRestantes > 0 ? saldoRestanteParaDivisao / mesesRestantes : 0;
 
-    // Geração das Parcelas Mensais
-    // REGRA: Começa no mês seguinte ao atual
+    // Geração das Parcelas Mensais (Início no mês seguinte)
     const dataAtualLoop = new Date(hoje);
-    // Avança para o próximo mês primeiro
     dataAtualLoop.setMonth(dataAtualLoop.getMonth() + 1);
-    // Define dia de vencimento (ex: dia 10)
     dataAtualLoop.setDate(10);
 
     for (let i = 0; i < mesesTotais; i++) {
-      // Verifica se ultrapassou a data de entrega
       if (dataAtualLoop >= dataEntrega) break;
 
       const valorOriginal = i === 0 ? primeiraMensalDefinida : valorMensalRestante;
-      // Correção monetária sobre o valor base desde o mês 0 até o mês do vencimento
       const fatorCorrecao = Math.pow(1 + taxaMensalDecimal, i);
       const valorCorrigido = valorOriginal * fatorCorrecao;
 
@@ -267,9 +270,7 @@ export default function SimuladorUnidadePage() {
         descricao: `Mensal ${i + 1}/${mesesTotais}`
       });
 
-      // Prepara data para próxima iteração
       dataAtualLoop.setMonth(dataAtualLoop.getMonth() + 1);
-      // Garante consistência do dia caso o mês não tenha 30/31 dias
       if (dataAtualLoop.getDate() !== 10) {
          dataAtualLoop.setDate(10);
       }
@@ -278,19 +279,16 @@ export default function SimuladorUnidadePage() {
     // Geração de Parcelas Extras
     if (habilitarParcelasExtras && valorBaseParcelaExtra > 0) {
       const dataBase = new Date(dataBaseParcelaExtra);
-      // Garante que data base não seja passada
       if (dataBase < hoje) dataBase.setTime(hoje.getTime());
 
       let dataProximaExtra = new Date(dataBase);
       
       while (dataProximaExtra < dataEntrega) {
-        // Regra dos 3 meses antes da entrega
         const limiteMinimo = new Date(dataEntrega);
         limiteMinimo.setMonth(limiteMinimo.getMonth() - 3);
         
         if (dataProximaExtra >= limiteMinimo) break;
 
-        // Calcular correção desde a "data de hoje" (valor base) até a data do vencimento
         const diffTimeExtra = dataProximaExtra.getTime() - hoje.getTime();
         const mesesDecorridosExtra = diffTimeExtra / (1000 * 60 * 60 * 24 * 30);
         const fatorCorrecaoExtra = Math.pow(1 + taxaMensalDecimal, mesesDecorridosExtra);
@@ -305,7 +303,6 @@ export default function SimuladorUnidadePage() {
           descricao: `${tipoParcelaExtra === 'semestral' ? 'Semestral' : 'Anual'} Extra`
         });
 
-        // Próxima parcela
         if (tipoParcelaExtra === 'semestral') {
           dataProximaExtra.setMonth(dataProximaExtra.getMonth() + 6);
         } else {
@@ -314,7 +311,6 @@ export default function SimuladorUnidadePage() {
       }
     }
 
-    // Ordenar todas por data
     parcelas.sort((a, b) => new Date(a.vencimento).getTime() - new Date(b.vencimento).getTime());
 
     setResultadoSimulacao({
@@ -362,9 +358,8 @@ export default function SimuladorUnidadePage() {
       <header className="border-b sticky top-0 bg-background/95 backdrop-blur z-50">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            {/* CORREÇÃO AQUI: Link apontando para a Home '/' */}
             <Link href="/" className="text-sm font-medium hover:text-primary transition-colors">
-              ← Voltar aos Empreendimentos
+              ← Voltar
             </Link>
             <h1 className="text-lg font-bold hidden sm:block truncate">
               {unidade.bloco} - {unidade.unidade}
