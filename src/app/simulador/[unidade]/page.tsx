@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ThemeToggleSimple } from '@/components/theme-toggle-simple';
 import { getUnidadesByEmpreendimento } from '@/data/static-data';
@@ -16,7 +16,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Switch } from '@/components/ui/switch';
 import { Loader2, TrendingUp, DollarSign, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 
-// DATAS ATUALIZADAS CONFORME SOLICITADO
+// DATAS DE ENTREGA ATUALIZADAS
 const deliveryDates: Record<string, Date> = {
   'alto-da-alvorada': new Date('2027-03-31'),
   'alto-da-aurora': new Date('2029-02-28'),
@@ -53,14 +53,12 @@ interface ResultadoSimulacao {
 }
 
 export default function SimuladorUnidadePage() {
-  const params = useParams();
   const router = useRouter();
-  const slugParam = params.unidade as string;
-  
   const [unidade, setUnidade] = useState<Unidade | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
+  // Estados do Simulador
   const [valorVenda, setValorVenda] = useState(0);
   const [desconto, setDesconto] = useState(0);
   const [percentualCaptação, setPercentualCaptação] = useState(30);
@@ -71,24 +69,27 @@ export default function SimuladorUnidadePage() {
   const [indicesData, setIndicesData] = useState<IndicesResponse | null>(null);
   const [loadingIndices, setLoadingIndices] = useState(true);
   
+  // Parcelas Extras
   const [habilitarParcelasExtras, setHabilitarParcelasExtras] = useState(false);
   const [tipoParcelaExtra, setTipoParcelaExtra] = useState<'semestral' | 'anual'>('semestral');
   const [valorBaseParcelaExtra, setValorBaseParcelaExtra] = useState<number>(0);
   const [dataBaseParcelaExtra, setDataBaseParcelaExtra] = useState<string>('');
   
   const [valorPrimeiraMensal, setValorPrimeiraMensal] = useState<number | ''>('');
-
   const [resultadoSimulacao, setResultadoSimulacao] = useState<ResultadoSimulacao | null>(null);
   const [temEspacoSemestral, setTemEspacoSemestral] = useState(false);
   const [temEspacoAnual, setTemEspacoAnual] = useState(false);
 
+  // Carregar Dados Iniciais
   useEffect(() => {
     async function fetchData() {
       try {
         setLoading(true);
         setError(null);
-
-        if (!slugParam) throw new Error('Unidade não especificada.');
+        
+        // Simulação de delay mínimo para UX se necessário, mas focado em carregar dados
+        const slugParam = window.location.pathname.split('/').pop() || '';
+        if (!slugParam) throw new Error('Unidade não especificada na URL.');
 
         let unidadeEncontrada: Unidade | undefined;
         const slugsConhecidos = ['alto-da-alvorada', 'alto-da-aurora', 'alto-do-horizonte'];
@@ -116,10 +117,10 @@ export default function SimuladorUnidadePage() {
         setUnidade(unidadeEncontrada);
         setValorVenda(unidadeEncontrada.valorVenda || 0);
 
-        const hojeReset = new Date();
-        const dSemestral = new Date(hojeReset.getFullYear(), hojeReset.getMonth() + 6, hojeReset.getDate());
+        // Configurar data base inicial
+        const hoje = new Date();
+        const dSemestral = new Date(hoje.getFullYear(), hoje.getMonth() + 6, hoje.getDate());
         setDataBaseParcelaExtra(dSemestral.toISOString().split('T')[0]);
-        setValorBaseParcelaExtra(0);
 
         await carregarIndices();
 
@@ -131,8 +132,9 @@ export default function SimuladorUnidadePage() {
       }
     }
     fetchData();
-  }, [slugParam]);
+  }, []);
 
+  // Verificar espaço e recalcular
   useEffect(() => {
     if (!unidade || !indicesData) return;
 
@@ -142,45 +144,56 @@ export default function SimuladorUnidadePage() {
     else if (getUnidadesByEmpreendimento('alto-do-horizonte').includes(unidade)) dataEntrega = deliveryDates['alto-do-horizonte'];
 
     const hoje = new Date();
-    const limiteSemestral = new Date(dataEntrega);
-    limiteSemestral.setMonth(limiteSemestral.getMonth() - 3);
+    const limiteMinimoExtra = new Date(dataEntrega);
+    limiteMinimoExtra.setMonth(limiteMinimoExtra.getMonth() - 3);
 
-    const limiteAnual = new Date(dataEntrega);
-    limiteAnual.setMonth(limiteAnual.getMonth() - 3);
-
-    const dataPrimeiraSemestral = new Date(hoje);
-    dataPrimeiraSemestral.setMonth(dataPrimeiraSemestral.getMonth() + 6);
+    const dataTesteSemestral = new Date(hoje);
+    dataTesteSemestral.setMonth(dataTesteSemestral.getMonth() + 6);
     
-    const dataPrimeiraAnual = new Date(hoje);
-    dataPrimeiraAnual.setMonth(dataPrimeiraAnual.getMonth() + 12);
+    const dataTesteAnual = new Date(hoje);
+    dataTesteAnual.setMonth(dataTesteAnual.getMonth() + 12);
 
-    setTemEspacoSemestral(dataPrimeiraSemestral <= limiteSemestral);
-    setTemEspacoAnual(dataPrimeiraAnual <= limiteAnual);
+    const espacoSemestral = dataTesteSemestral <= limiteMinimoExtra;
+    const espacoAnual = dataTesteAnual <= limiteMinimoExtra;
+
+    setTemEspacoSemestral(espacoSemestral);
+    setTemEspacoAnual(espacoAnual);
 
     if (habilitarParcelasExtras) {
-      if (tipoParcelaExtra === 'semestral' && !temEspacoSemestral) setHabilitarParcelasExtras(false);
-      else if (tipoParcelaExtra === 'anual' && !temEspacoAnual) setHabilitarParcelasExtras(false);
+      if ((tipoParcelaExtra === 'semestral' && !espacoSemestral) || 
+          (tipoParcelaExtra === 'anual' && !espacoAnual)) {
+        setHabilitarParcelasExtras(false);
+      }
     }
 
     calcularSimulacao(dataEntrega);
-
   }, [unidade, valorVenda, desconto, percentualCaptação, indiceSelecionado, periodoMedia, indicesData, habilitarParcelasExtras, tipoParcelaExtra, valorBaseParcelaExtra, dataBaseParcelaExtra, valorPrimeiraMensal]);
 
   async function carregarIndices() {
     setLoadingIndices(true);
     try {
       const res = await fetch('/api/incc-ipca');
-      if (!res.ok) throw new Error('Falha na API');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: IndicesResponse = await res.json();
       
-      // Removemos a sanitização agressiva para permitir que dados reais (ex: 0.45) passem
-      // Apenas verificamos se não são zero ou negativos
-      setIndicesData(data);
+      // Validação extra no frontend
+      const sanitize = (v: number) => (v > 0.05 && v < 3.0) ? v : 0; 
+      
+      const safeData = {
+        incc: { ...data.incc, avg12: sanitize(data.incc.avg12), avg180: sanitize(data.incc.avg180) },
+        ipca: { ...data.ipca, avg12: sanitize(data.ipca.avg12), avg180: sanitize(data.ipca.avg180) }
+      };
+
+      // Se o backend já marcou como fallback, mantemos. Se zerou na sanitização, marcamos aqui.
+      if (safeData.incc.avg12 === 0) safeData.incc.isFallback = true;
+      if (safeData.ipca.avg12 === 0) safeData.ipca.isFallback = true;
+
+      setIndicesData(safeData);
     } catch (err) {
-      console.warn('Fallback de índices ativado.', err);
+      console.warn('Falha na API, usando fallback local.', err);
       setIndicesData({
-        incc: { avg180: 0.48, avg12: 0.46, source: 'Estimativa Histórica', indicator: 'INCC', isFallback: true },
-        ipca: { avg180: 0.42, avg12: 0.39, source: 'Estimativa Histórica', indicator: 'IPCA', isFallback: true }
+        incc: { avg180: 0.48, avg12: 0.46, source: 'Offline Fallback', indicator: 'INCC', isFallback: true },
+        ipca: { avg180: 0.42, avg12: 0.39, source: 'Offline Fallback', indicator: 'IPCA', isFallback: true }
       });
     } finally {
       setLoadingIndices(false);
@@ -206,8 +219,7 @@ export default function SimuladorUnidadePage() {
     const mesesValidos = Math.max(1, mesesTotais);
 
     const parcelas: Parcela[] = [];
-    const valorMensalPadrao = saldoParaObras / mesesValidos;
-    const primeiraMensalDefinida = typeof valorPrimeiraMensal === 'number' && valorPrimeiraMensal > 0 ? valorPrimeiraMensal : valorMensalPadrao;
+    const primeiraMensalDefinida = typeof valorPrimeiraMensal === 'number' && valorPrimeiraMensal > 0 ? valorPrimeiraMensal : (saldoParaObras / mesesValidos);
     
     let saldoRestanteParaDivisao = saldoParaObras - primeiraMensalDefinida;
     if (saldoRestanteParaDivisao < 0) saldoRestanteParaDivisao = 0;
@@ -215,16 +227,15 @@ export default function SimuladorUnidadePage() {
     const mesesRestantes = mesesValidos - 1;
     const valorMensalRestante = mesesRestantes > 0 ? saldoRestanteParaDivisao / mesesRestantes : 0;
 
-    const dataAtual = new Date(hoje);
+    const dataAtualLoop = new Date(hoje);
     for (let i = 0; i < mesesValidos; i++) {
-        const dataVencimento = new Date(dataAtual);
+        const dataVencimento = new Date(dataAtualLoop);
         dataVencimento.setDate(10); 
 
         if (dataVencimento >= dataEntrega) break;
 
         const valorOriginal = i === 0 ? primeiraMensalDefinida : valorMensalRestante;
-        const mesesDecorridos = i;
-        const fatorCorrecao = Math.pow(1 + taxaMensalDecimal, mesesDecorridos);
+        const fatorCorrecao = Math.pow(1 + taxaMensalDecimal, i);
         const valorCorrigido = valorOriginal * fatorCorrecao;
 
         parcelas.push({
@@ -233,25 +244,21 @@ export default function SimuladorUnidadePage() {
             vencimento: dataVencimento.toISOString().split('T')[0],
             valorBase: valorOriginal,
             valorCorrigido: parseFloat(valorCorrigido.toFixed(2)),
-            descricao: `Mensal ${i + 1}/${mesesValidos}`
+            descricao: `Mensal ${i + 1}`
         });
 
-        dataAtual.setMonth(dataAtual.getMonth() + 1);
+        dataAtualLoop.setMonth(dataAtualLoop.getMonth() + 1);
     }
 
     if (habilitarParcelasExtras) {
         const dataBase = new Date(dataBaseParcelaExtra);
-        const hoje = new Date();
         if (dataBase < hoje) dataBase.setTime(hoje.getTime());
 
         let dataProximaExtra = new Date(dataBase);
-        // Ajuste inicial correto baseado no tipo selecionado
+        // Ajuste inicial baseado no tipo selecionado para garantir que comece no futuro correto
         if (tipoParcelaExtra === 'semestral') {
-             // Já está na data base (6 meses a partir de hoje configurado no useEffect)
-             // Não precisamos adicionar mais 6 meses aqui se a dataBase já for a do primeiro vencimento
-             // Mas a lógica anterior somava. Vamos manter a consistência: dataBase é a do primeiro vencimento.
-        } else if (tipoParcelaExtra === 'anual') {
-             // Idem
+             // Se a data base for hoje, pula para 6 meses. Se o usuário escolheu uma data, usa ela.
+             // A lógica assume que dataBaseParcelaExtra já foi setada corretamente pelo UI (hoje + 6m)
         }
 
         while (dataProximaExtra < dataEntrega) {
@@ -266,7 +273,7 @@ export default function SimuladorUnidadePage() {
 
             parcelas.push({
                 id: `extra-${dataProximaExtra.getTime()}`,
-                tipo: `extra-${tipoParcelaExtra}` as 'extra-semestral' | 'extra-anual',
+                tipo: `extra-${tipoParcelaExtra}` as any,
                 vencimento: dataProximaExtra.toISOString().split('T')[0],
                 valorBase: valorBaseParcelaExtra,
                 valorCorrigido: parseFloat(valorCorrigidoExtra.toFixed(2)),
@@ -275,7 +282,7 @@ export default function SimuladorUnidadePage() {
 
             if (tipoParcelaExtra === 'semestral') {
                 dataProximaExtra.setMonth(dataProximaExtra.getMonth() + 6);
-            } else if (tipoParcelaExtra === 'anual') {
+            } else {
                 dataProximaExtra.setFullYear(dataProximaExtra.getFullYear() + 1);
             }
         }
@@ -291,90 +298,196 @@ export default function SimuladorUnidadePage() {
     });
   }
 
-  if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin" /></div>;
-  if (error) return <div className="container mx-auto py-10 px-4"><Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertDescription>{error}</AlertDescription></Alert><Button onClick={() => router.back()} className="mt-4">Voltar</Button></div>;
-  if (!unidade) return <div>Unidade não encontrada.</div>;
+  if (loading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8"/></div>;
+  if (error) return <div className="p-4 text-red-500">{error} <Button onClick={() => router.back()} variant="link">Voltar</Button></div>;
+  if (!unidade) return <div>Unidade não encontrada</div>;
 
   const dadosIndiceAtivo = indicesData ? (indiceSelecionado === 'INCC' ? indicesData.incc : indicesData.ipca) : null;
-  const fonteDados = dadosIndiceAtivo?.isFallback ? "Estimados (Fallback)" : "Oficiais (Tempo Real)";
+  const fonteDisplay = dadosIndiceAtivo?.isFallback ? "Estimativa (Fallback)" : "Dados Oficiais (Bacen)";
   const corFonte = dadosIndiceAtivo?.isFallback ? "text-amber-600" : "text-green-600";
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b"><div className="container flex h-16 items-center justify-between px-4"><Link href="/" className="flex items-center gap-2 font-bold text-lg"><TrendingUp className="h-6 w-6" /><span>Simulador</span></Link><ThemeToggleSimple /></div></header>
-      <main className="container mx-auto py-6 px-4">
-        <div className="mb-6"><Button variant="outline" onClick={() => router.back()}>&larr; Voltar</Button></div>
-        <Card className="max-w-4xl mx-auto mb-8">
-          <CardHeader><CardTitle>Simulador: {unidade.bloco} - {unidade.unidade}</CardTitle></CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <div><Label htmlFor="valorVenda">Valor de Venda (R$)</Label><Input id="valorVenda" type="number" value={valorVenda} onChange={(e) => setValorVenda(Number(e.target.value))} disabled={loadingIndices} /></div>
-              <div><Label htmlFor="desconto">Desconto (R$)</Label><Input id="desconto" type="number" value={desconto} onChange={(e) => setDesconto(Number(e.target.value))} disabled={loadingIndices} /></div>
-              <div><Label htmlFor="percentualCaptação">Captação (%)</Label><Select value={percentualCaptação.toString()} onValueChange={(v) => setPercentualCaptação(Number(v))} disabled={loadingIndices}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="25">25%</SelectItem><SelectItem value="30">30%</SelectItem></SelectContent></Select></div>
-              <div><Label htmlFor="indiceSelecionado">Índice</Label><Select value={indiceSelecionado} onValueChange={(v) => setIndiceSelecionado(v as 'INCC' | 'IPCA')} disabled={loadingIndices}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="INCC">INCC</SelectItem><SelectItem value="IPCA">IPCA</SelectItem></SelectContent></Select></div>
-              <div><Label htmlFor="periodoMedia">Período</Label><Select value={periodoMedia} onValueChange={(v) => setPeriodoMedia(v as '12m' | '180m')} disabled={loadingIndices}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="12m">Últimos 12 meses</SelectItem><SelectItem value="180m">Últimos 180 meses</SelectItem></SelectContent></Select></div>
-              <div><Label htmlFor="fonteDados">Fonte dos Dados</Label><Input id="fonteDados" type="text" value={`${fonteDados} - ${dadosIndiceAtivo?.source}`} readOnly className={`cursor-not-allowed bg-muted ${corFonte} font-semibold`} /></div>
-              <div><Label htmlFor="valorPrimeiraMensal">1ª Mensal (Opcional)</Label><Input id="valorPrimeiraMensal" type="number" value={valorPrimeiraMensal === '' ? '' : valorPrimeiraMensal} onChange={(e) => setValorPrimeiraMensal(e.target.value === '' ? '' : Number(e.target.value))} disabled={loadingIndices} /></div>
-            </div>
+    <div className="min-h-screen bg-background font-sans">
+      <header className="border-b sticky top-0 bg-background/95 backdrop-blur z-50">
+        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Link href="/" className="font-bold text-lg hidden sm:block">Simulador</Link>
+            <span className="text-muted-foreground">|</span>
+            <h1 className="text-lg font-semibold truncate max-w-[200px] sm:max-w-md">{unidade.bloco} - {unidade.unidade}</h1>
+          </div>
+          <ThemeToggleSimple />
+        </div>
+      </header>
 
-            <div className="mb-6 p-4 border rounded-md bg-accent/10">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold flex items-center gap-2"><DollarSign className="h-5 w-5" /> Parcelas Extras</h3>
-                <Switch id="habilitarParcelasExtras" checked={habilitarParcelasExtras} onCheckedChange={(checked) => { if (checked && ((tipoParcelaExtra === 'semestral' && temEspacoSemestral) || (tipoParcelaExtra === 'anual' && temEspacoAnual))) setHabilitarParcelasExtras(checked); else setHabilitarParcelasExtras(checked); }} disabled={(!temEspacoSemestral && tipoParcelaExtra === 'semestral') || (!temEspacoAnual && tipoParcelaExtra === 'anual')} />
-              </div>
-              {habilitarParcelasExtras && (
-                <div className="space-y-4 pl-6">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div><Label>Tipo</Label><Select value={tipoParcelaExtra} onValueChange={(v) => setTipoParcelaExtra(v as 'semestral' | 'anual')}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="semestral" disabled={!temEspacoSemestral}>Semestral</SelectItem><SelectItem value="anual" disabled={!temEspacoAnual}>Anual</SelectItem></SelectContent></Select></div>
-                    <div><Label>Data Base</Label><Input type="date" value={dataBaseParcelaExtra} onChange={(e) => setDataBaseParcelaExtra(e.target.value)} /></div>
-                    <div><Label>Valor Base (R$)</Label><Input type="number" value={valorBaseParcelaExtra} onChange={(e) => setValorBaseParcelaExtra(Number(e.target.value))} /></div>
+      <main className="container mx-auto px-4 py-8 space-y-6">
+        <Button variant="outline" onClick={() => router.back()} className="mb-4">← Voltar para Empreendimento</Button>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          <div className="lg:col-span-5 space-y-6">
+            <Card>
+              <CardHeader><CardTitle>Parâmetros</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label>Valor de Venda (R$)</Label>
+                  <Input type="number" value={valorVenda} onChange={e => setValorVenda(Number(e.target.value))} />
+                </div>
+                <div>
+                  <Label htmlFor="desconto">Desconto (R$)</Label>
+                  <Input id="desconto" type="number" value={desconto} onChange={e => setDesconto(Number(e.target.value))} />
+                </div>
+                <div>
+                  <Label>Captação (%)</Label>
+                  <Select value={percentualCaptação.toString()} onValueChange={v => setPercentualCaptação(Number(v))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="25">25%</SelectItem>
+                      <SelectItem value="30">30%</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                   <div>
+                    <Label>Índice</Label>
+                    <Select value={indiceSelecionado} onValueChange={v => setIndiceSelecionado(v as any)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="INCC">INCC</SelectItem>
+                        <SelectItem value="IPCA">IPCA</SelectItem>
+                      </SelectContent>
+                    </Select>
+                   </div>
+                   <div>
+                    <Label>Período</Label>
+                    <Select value={periodoMedia} onValueChange={v => setPeriodoMedia(v as any)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="12m">12 Meses</SelectItem>
+                        <SelectItem value="180m">180 Meses</SelectItem>
+                      </SelectContent>
+                    </Select>
+                   </div>
+                </div>
+                
+                <div className={`text-xs p-2 rounded border ${dadosIndiceAtivo?.isFallback ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
+                  <p className="font-semibold flex items-center gap-1">
+                    {dadosIndiceAtivo?.isFallback ? <AlertCircle className="h-3 w-3"/> : <CheckCircle2 className="h-3 w-3"/>}
+                    Fonte: <span className={corFonte}>{fonteDisplay}</span>
+                  </p>
+                  {dadosIndiceAtivo && (
+                    <p className="mt-1">
+                      Taxa Atual ({periodoMedia}): <strong>{(periodoMedia === '12m' ? dadosIndiceAtivo.avg12 : dadosIndiceAtivo.avg180).toFixed(3)}% a.m.</strong>
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <Label htmlFor="valorPrimeiraMensal">1ª Parcela Mensal (Opcional)</Label>
+                  <Input id="valorPrimeiraMensal" type="number" value={valorPrimeiraMensal} onChange={e => setValorPrimeiraMensal(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Padrão: rateio igual" />
+                </div>
+
+                <div className="pt-4 border-t">
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-base font-semibold">Parcelas Extras</Label>
+                    <Switch 
+                      checked={habilitarParcelasExtras} 
+                      onCheckedChange={setHabilitarParcelasExtras}
+                      disabled={!temEspacoSemestral && !temEspacoAnual}
+                    />
                   </div>
-                  <Alert><Info className="h-4 w-4" /><AlertDescription>Valores corrigidos pelo índice até a data do vencimento. Limite: 3 meses antes da entrega.</AlertDescription></Alert>
+                  {!temEspacoSemestral && !temEspacoAnual && (
+                    <p className="text-xs text-muted-foreground mb-2">Sem prazo hábil (mínimo 3 meses antes da entrega).</p>
+                  )}
+                  
+                  {habilitarParcelasExtras && (
+                    <div className="space-y-3 bg-muted/50 p-3 rounded-md">
+                      <div>
+                        <Label>Tipo</Label>
+                        <Select value={tipoParcelaExtra} onValueChange={v => setTipoParcelaExtra(v as any)}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="semestral" disabled={!temEspacoSemestral}>Semestral</SelectItem>
+                            <SelectItem value="anual" disabled={!temEspacoAnual}>Anual</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Data Base (Início da Correção)</Label>
+                        <Input type="date" value={dataBaseParcelaExtra} onChange={e => setDataBaseParcelaExtra(e.target.value)} />
+                      </div>
+                      <div>
+                        <Label>Valor Base (R$)</Label>
+                        <Input type="number" value={valorBaseParcelaExtra} onChange={e => setValorBaseParcelaExtra(Number(e.target.value))} />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        O valor será corrigido pelo índice selecionado até a data de cada vencimento.
+                      </p>
+                    </div>
+                  )}
                 </div>
-              )}
-              {(!temEspacoSemestral && !temEspacoAnual) && <p className="text-sm text-muted-foreground pl-6">Sem espaço para extras (entrega próxima).</p>}
-            </div>
+              </CardContent>
+            </Card>
+          </div>
 
-            {loadingIndices && <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4"><Loader2 className="h-4 w-4 animate-spin" />Carregando índices oficiais...</div>}
-            
-            {dadosIndiceAtivo && !loadingIndices && (
-              <Alert className="mb-6 border-l-4 border-primary">
-                <TrendingUp className="h-4 w-4" />
-                <AlertDescription className="font-medium">
-                  {dadosIndiceAtivo.indicator} ({periodoMedia === '12m' ? '12 meses' : '180 meses'}): <span className="text-lg">{(periodoMedia === '12m' ? dadosIndiceAtivo.avg12 : dadosIndiceAtivo.avg180).toFixed(3)}% a.m.</span>
-                  <span className="block text-xs text-muted-foreground mt-1">Fonte: {dadosIndiceAtivo.source}</span>
-                </AlertDescription>
-              </Alert>
-            )}
+          <div className="lg:col-span-7">
+            <Card className="h-full">
+              <CardHeader><CardTitle>Fluxo de Pagamentos</CardTitle></CardHeader>
+              <CardContent>
+                {resultadoSimulacao ? (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="p-4 bg-primary/10 rounded-lg text-center">
+                        <p className="text-sm text-muted-foreground">Entrada</p>
+                        <p className="text-xl font-bold text-primary">R$ {resultadoSimulacao.entrada.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                      </div>
+                      <div className="p-4 bg-primary/10 rounded-lg text-center">
+                        <p className="text-sm text-muted-foreground">Total Obras</p>
+                        <p className="text-xl font-bold text-primary">R$ {resultadoSimulacao.totalObras.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                      </div>
+                      <div className="p-4 bg-muted rounded-lg text-center">
+                        <p className="text-sm text-muted-foreground">Saldo Pós-Obra</p>
+                        <p className="text-xl font-bold">R$ {resultadoSimulacao.saldoDevedor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                      </div>
+                    </div>
 
-            {resultadoSimulacao && (
-              <div className="mt-8">
-                <h3 className="text-xl font-bold mb-4 flex items-center gap-2"><CheckCircle2 className="h-5 w-5" /> Resultado</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                  <div className="bg-primary/5 p-4 rounded-lg border"><p className="text-sm text-muted-foreground">Entrada (10%)</p><p className="text-lg font-semibold">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(resultadoSimulacao.entrada)}</p></div>
-                  <div className="bg-primary/5 p-4 rounded-lg border"><p className="text-sm text-muted-foreground">Total Obras</p><p className="text-lg font-semibold">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(resultadoSimulacao.totalObras)}</p></div>
-                  <div className="bg-primary/5 p-4 rounded-lg border"><p className="text-sm text-muted-foreground">Saldo Devedor</p><p className="text-lg font-semibold">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(resultadoSimulacao.saldoDevedor)}</p></div>
-                </div>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader><TableRow><TableHead>Tipo</TableHead><TableHead>Descrição</TableHead><TableHead>Vencimento</TableHead><TableHead className="text-right">Valor Base</TableHead><TableHead className="text-right">Valor Corrigido</TableHead></TableRow></TableHeader>
-                    <TableBody>
-                      {resultadoSimulacao.parcelas.map((p) => (
-                        <TableRow key={p.id}>
-                          <TableCell className="capitalize">{p.tipo.replace('extra-', '').replace('-', ' ')}</TableCell>
-                          <TableCell>{p.descricao}</TableCell>
-                          <TableCell>{new Date(p.vencimento).toLocaleDateString('pt-BR')}</TableCell>
-                          <TableCell className="text-right text-muted-foreground">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(p.valorBase)}</TableCell>
-                          <TableCell className="text-right font-bold">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(p.valorCorrigido)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                    <div className="border rounded-md overflow-hidden">
+                      <div className="max-h-[500px] overflow-y-auto">
+                        <Table>
+                          <TableHeader className="sticky top-0 bg-background">
+                            <TableRow>
+                              <TableHead>Tipo</TableHead>
+                              <TableHead>Vencimento</TableHead>
+                              <TableHead className="text-right">Valor Base</TableHead>
+                              <TableHead className="text-right">Valor Corrigido</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {resultadoSimulacao.parcelas.map((p, i) => (
+                              <TableRow key={p.id} className={p.tipo !== 'mensal' ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''}>
+                                <TableCell className="capitalize font-medium">{p.tipo.replace('extra-', '')} {p.tipo !== 'mensal' && '⭐'}</TableCell>
+                                <TableCell>{new Date(p.vencimento).toLocaleDateString('pt-BR')}</TableCell>
+                                <TableCell className="text-right text-muted-foreground text-sm">R$ {p.valorBase.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</TableCell>
+                                <TableCell className="text-right font-bold">R$ {p.valorCorrigido.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                    <Alert>
+                      <Info className="h-4 w-4" />
+                      <AlertDescription>
+                        Valores corrigidos mensalmente pelo {indiceSelecionado} ({(periodoMedia === '12m' ? dadosIndiceAtivo?.avg12 : dadosIndiceAtivo?.avg180)?.toFixed(3)}% a.m.). 
+                        Parcelas extras só são permitidas até 3 meses antes da entrega ({deliveryDates[Object.keys(deliveryDates).find(k => getUnidadesByEmpreendimento(k).includes(unidade!)) || '']?.toLocaleDateString('pt-BR')}).
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                ) : (
+                  <div className="h-64 flex items-center justify-center text-muted-foreground">Aguardando dados...</div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </main>
     </div>
   );
