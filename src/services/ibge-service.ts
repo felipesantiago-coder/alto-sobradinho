@@ -34,14 +34,14 @@ export async function getIBGEIndices(): Promise<IBGEData> {
       incc: {
         media15Anos: data.incc.avg180,
         media12Meses: data.incc.avg12,
-        projecao: data.incc.projection,
+        projecao: data.incc.projecao ?? data.incc.avg12,
         source: data.incc.source,
         indicator: data.incc.indicator
       },
       ipca: {
         media15Anos: data.ipca.avg180,
         media12Meses: data.ipca.avg12,
-        projecao: data.ipca.projection,
+        projecao: data.ipca.projecao ?? data.ipca.avg12,
         source: data.ipca.source,
         indicator: data.ipca.indicator
       }

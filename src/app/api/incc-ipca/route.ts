@@ -17,10 +17,12 @@ interface MonthlyEntry {
 interface IndexData {
   avg180: number;
   avg12: number;
+  projecao: number;
   source: string;
   indicator: string;
   isFallback: boolean;
   lastUpdate?: string;
+  projecaoData?: string;
 }
 
 interface ApiResponse {
@@ -207,6 +209,79 @@ function calcAverages(entries: MonthlyEntry[]) {
   };
 }
 
+/**
+ * CAMADA 4: Expectativas de Mercado - BCB Focus Report (Olinda API)
+ * Obtém a mediana suavizada das expectativas de IPCA 12 meses à frente.
+ * Retorna a taxa anual (%) que é convertida para mensal no cálculo.
+ */
+async function fetchIPCAExpectationFromFocus(): Promise<{ annualRate: number; date: string } | null> {
+  try {
+    const url = 'https://olinda.bcb.gov.br/olinda/servico/Expectativas/versao/v1/odata/ExpectativasMercadoInflacao12Meses';
+    const params = new URLSearchParams({
+      '$filter': "Indicador eq 'IPCA' and Suavizada eq 'S'",
+      '$orderby': 'Data desc',
+      '$top': '1',
+      '$format': 'json'
+    });
+
+    const res = await fetch(`${url}?${params.toString()}`, {
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!res.ok) return null;
+    const json = await res.json();
+
+    if (!json.value || json.value.length === 0) return null;
+
+    const entry = json.value[0];
+    const median = parseFloat(entry.Mediana);
+
+    if (isNaN(median) || median <= 0 || median > 30) return null;
+
+    return { annualRate: median, date: entry.Data };
+  } catch (error) {
+    console.warn('Falha ao buscar expectativa IPCA (Focus):', error);
+    return null;
+  }
+}
+
+/**
+ * Calcula a projeção futura mensal a partir da taxa anual do Focus Report.
+ * Conversão: taxa_mensal = (1 + taxa_anual/100)^(1/12) - 1
+ */
+function annualToMonthlyRate(annualRate: number): number {
+  return (Math.pow(1 + annualRate / 100, 1 / 12) - 1) * 100;
+}
+
+/**
+ * Calcula o spread histórico INCC - IPCA (diferença média mensal)
+ * usado para projetar o INCC a partir da expectativa do IPCA.
+ */
+function calcINCCSpread(inccEntries: MonthlyEntry[], ipcaEntries: MonthlyEntry[]): number {
+  if (!inccEntries || !ipcaEntries || inccEntries.length < 12 || ipcaEntries.length < 12) {
+    return 0.13; // spread padrão do mercado imobiliário
+  }
+
+  // Alinhar os últimos 12 meses de dados
+  const last12INCC = inccEntries.slice(-12).map(e => e.valor);
+  const last12IPCA = ipcaEntries.slice(-12).map(e => e.valor);
+
+  if (last12INCC.length !== last12IPCA.length) return 0.13;
+
+  let totalSpread = 0;
+  let validPairs = 0;
+
+  for (let i = 0; i < last12INCC.length; i++) {
+    const diff = last12INCC[i] - last12IPCA[i];
+    if (!isNaN(diff) && Math.abs(diff) < 2) { // sanity check
+      totalSpread += diff;
+      validPairs++;
+    }
+  }
+
+  return validPairs > 0 ? totalSpread / validPairs : 0.13;
+}
+
 // Valores de fallback estático (Referência Maio/2026 conforme especificação)
 const FALLBACK_INCC = { avg12: 0.5092, avg180: 0.5570 };
 const FALLBACK_IPCA = { avg12: 0.3800, avg180: 0.4200 };
@@ -281,22 +356,42 @@ export async function GET() {
 
     const lastUpdate = inccEntries?.[inccEntries.length - 1]?.data || new Date().toLocaleDateString('pt-BR');
 
+    // --- PROJEÇÕES FUTURAS (BCB Focus Report) ---
+    let ipcaProjecaoMensal = ipcaAverages.avg12; // fallback: usa média 12m
+    let projecaoSource = 'Média 12 Meses (Focus indisponível)';
+    let projecaoDate = '';
+
+    const focusData = await fetchIPCAExpectationFromFocus();
+    if (focusData) {
+      ipcaProjecaoMensal = annualToMonthlyRate(focusData.annualRate);
+      projecaoSource = `BCB Focus Report (Mediana ${focusData.annualRate.toFixed(2)}% a.a.)`;
+      projecaoDate = focusData.date;
+    }
+
+    // Projeção INCC = Projeção IPCA + Spread Histórico INCC-IPCA
+    const inccIpcSpread = calcINCCSpread(inccEntries ?? [], ipcaEntries ?? []);
+    const inccProjecaoMensal = ipcaProjecaoMensal + inccIpcSpread;
+
     const response: ApiResponse = {
       incc: {
         avg180: parseFloat(inccAverages.avg180.toFixed(4)),
         avg12: parseFloat(inccAverages.avg12.toFixed(4)),
+        projecao: parseFloat(inccProjecaoMensal.toFixed(4)),
         source: inccSource,
         indicator: inccIndicator,
         isFallback: inccIsFallback,
-        lastUpdate
+        lastUpdate,
+        projecaoData: projecaoDate
       },
       ipca: {
         avg180: parseFloat(ipcaAverages.avg180.toFixed(4)),
         avg12: parseFloat(ipcaAverages.avg12.toFixed(4)),
+        projecao: parseFloat(ipcaProjecaoMensal.toFixed(4)),
         source: ipcaSource,
         indicator: ipcaIndicator,
         isFallback: ipcaIsFallback,
-        lastUpdate
+        lastUpdate,
+        projecaoData: projecaoDate
       }
     };
 
@@ -309,8 +404,8 @@ export async function GET() {
     console.error("Erro crítico na API de índices:", error);
     // Retorno de emergência
     return NextResponse.json({
-      incc: { avg180: FALLBACK_INCC.avg180, avg12: FALLBACK_INCC.avg12, source: "Erro Sistema", indicator: "INCC", isFallback: true },
-      ipca: { avg180: FALLBACK_IPCA.avg180, avg12: FALLBACK_IPCA.avg12, source: "Erro Sistema", indicator: "IPCA", isFallback: true }
+      incc: { avg180: FALLBACK_INCC.avg180, avg12: FALLBACK_INCC.avg12, projecao: FALLBACK_INCC.avg12, source: "Erro Sistema", indicator: "INCC", isFallback: true },
+      ipca: { avg180: FALLBACK_IPCA.avg180, avg12: FALLBACK_IPCA.avg12, projecao: FALLBACK_IPCA.avg12, source: "Erro Sistema", indicator: "IPCA", isFallback: true }
     });
   }
 }

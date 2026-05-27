@@ -26,9 +26,11 @@ const deliveryDates: Record<string, Date> = {
 interface IndiceData {
   avg180: number;
   avg12: number;
+  projecao: number;
   source: string;
   indicator: string;
   isFallback: boolean;
+  projecaoData?: string;
 }
 
 interface IndicesResponse {
@@ -69,7 +71,7 @@ export default function SimuladorUnidadePage() {
   
   // Seleção de Índices
   const [indiceSelecionado, setIndiceSelecionado] = useState<'INCC' | 'IPCA'>('INCC');
-  const [periodoMedia, setPeriodoMedia] = useState<'180m' | '12m'>('12m');
+  const [periodoMedia, setPeriodoMedia] = useState<'180m' | '12m' | 'projecao'>('12m');
   
   // Dados dos Índices
   const [indicesData, setIndicesData] = useState<IndicesResponse | null>(null);
@@ -201,14 +203,14 @@ export default function SimuladorUnidadePage() {
       const sanitize = (v: number) => (v > 0.05 && v < 3.0) ? v : 0; 
       
       setIndicesData({
-        incc: { ...data.incc, avg12: sanitize(data.incc.avg12), avg180: sanitize(data.incc.avg180) },
-        ipca: { ...data.ipca, avg12: sanitize(data.ipca.avg12), avg180: sanitize(data.ipca.avg180) }
+        incc: { ...data.incc, avg12: sanitize(data.incc.avg12), avg180: sanitize(data.incc.avg180), projecao: sanitize(data.incc.projecao) },
+        ipca: { ...data.ipca, avg12: sanitize(data.ipca.avg12), avg180: sanitize(data.ipca.avg180), projecao: sanitize(data.ipca.projecao) }
       });
     } catch (err) {
       console.warn('Usando fallback de índices.', err);
       setIndicesData({
-        incc: { avg180: 0.48, avg12: 0.46, source: 'Estimativa Histórica', indicator: 'INCC', isFallback: true },
-        ipca: { avg180: 0.42, avg12: 0.39, source: 'Estimativa Histórica', indicator: 'IPCA', isFallback: true }
+        incc: { avg180: 0.48, avg12: 0.46, projecao: 0.46, source: 'Estimativa Histórica', indicator: 'INCC', isFallback: true },
+        ipca: { avg180: 0.42, avg12: 0.39, projecao: 0.39, source: 'Estimativa Histórica', indicator: 'IPCA', isFallback: true }
       });
     } finally {
       setLoadingIndices(false);
@@ -220,7 +222,7 @@ export default function SimuladorUnidadePage() {
 
     const valorFinal = valorVenda - desconto;
     const dadosIndice = indiceSelecionado === 'INCC' ? indicesData.incc : indicesData.ipca;
-    const taxaMensalPct = periodoMedia === '12m' ? dadosIndice.avg12 : dadosIndice.avg180;
+    const taxaMensalPct = periodoMedia === '12m' ? dadosIndice.avg12 : periodoMedia === 'projecao' ? dadosIndice.projecao : dadosIndice.avg180;
     const taxaMensalDecimal = taxaMensalPct / 100;
 
     // 1. Entrada (10%)
@@ -466,11 +468,14 @@ export default function SimuladorUnidadePage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="180m">
-                        Média 180 Meses {dadosIndiceAtivo && `(${dadosIndiceAtivo.avg180.toFixed(3)}% a.m.)`}
+                      <SelectItem value="projecao">
+                        Projeção Futura {dadosIndiceAtivo && `(${dadosIndiceAtivo.projecao.toFixed(3)}% a.m.)`}
                       </SelectItem>
                       <SelectItem value="12m">
                         Média 12 Meses {dadosIndiceAtivo && `(${dadosIndiceAtivo.avg12.toFixed(3)}% a.m.)`}
+                      </SelectItem>
+                      <SelectItem value="180m">
+                        Média 180 Meses {dadosIndiceAtivo && `(${dadosIndiceAtivo.avg180.toFixed(3)}% a.m.)`}
                       </SelectItem>
                     </SelectContent>
                   </Select>
@@ -494,9 +499,15 @@ export default function SimuladorUnidadePage() {
                       <div className="pt-2 border-t flex justify-between items-center">
                         <span className="font-semibold">Taxa Aplicada:</span>
                         <span className="font-bold text-primary">
-                          {periodoMedia === '180m' ? dadosIndiceAtivo.avg180 : dadosIndiceAtivo.avg12}% a.m.
+                          {periodoMedia === 'projecao' ? dadosIndiceAtivo.projecao : periodoMedia === '12m' ? dadosIndiceAtivo.avg12 : dadosIndiceAtivo.avg180}% a.m.
                         </span>
                       </div>
+                      {periodoMedia === 'projecao' && dadosIndiceAtivo.projecaoData && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Ref. Projeção:</span>
+                          <span className="font-medium text-xs">{new Date(dadosIndiceAtivo.projecaoData + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
+                        </div>
+                      )}
                     </div>
                   ) : null}
                 </div>
@@ -668,7 +679,7 @@ export default function SimuladorUnidadePage() {
                       <AlertDescription className="ml-2">
                         <p className="font-semibold text-foreground">Resumo:</p>
                         <p className="text-sm text-muted-foreground mt-1">
-                          Simulação baseada no índice {indiceSelecionado} ({periodoMedia === '180m' ? dadosIndiceAtivo?.avg180 : dadosIndiceAtivo?.avg12}% a.m.). 
+                          Simulação baseada no índice {indiceSelecionado} ({periodoMedia === 'projecao' ? dadosIndiceAtivo?.projecao : periodoMedia === '12m' ? dadosIndiceAtivo?.avg12 : dadosIndiceAtivo?.avg180}% a.m.) {periodoMedia === 'projecao' ? ' - Projeção de mercado (Focus Report BCB)' : ` - Média ${periodoMedia === '12m' ? '12' : '180'} meses`}. 
                           Fonte: {fonteDados}.
                         </p>
                       </AlertDescription>
