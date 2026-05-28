@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ThemeToggleSimple } from '@/components/theme-toggle-simple';
 import { getUnidadesByEmpreendimento, Unidade } from '@/data/static-data';
@@ -69,7 +69,9 @@ interface ResultadoSimulacao {
 export default function SimuladorUnidadePage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const slugParam = params.unidade as string;
+  const empreendimentoParam = searchParams.get('empreendimento') || '';
   
   const [unidade, setUnidade] = useState<Unidade | null>(null);
   const [loading, setLoading] = useState(true);
@@ -116,36 +118,32 @@ export default function SimuladorUnidadePage() {
 
         if (!slugParam) throw new Error('Unidade não especificada.');
 
+        const slugsConhecidos = ['alto-da-alvorada', 'alto-da-aurora', 'alto-do-horizonte'];
         let unidadeEncontrada: Unidade | undefined;
         let slugDetectado = '';
-        const slugsConhecidos = ['alto-da-alvorada', 'alto-da-aurora', 'alto-do-horizonte'];
-        const slugLower = slugParam.toLowerCase();
-        
-        // 1. Tentativa de detecção por prefixo
-        slugDetectado = slugsConhecidos.find(s => slugLower.startsWith(s)) || '';
-        
-        if (slugDetectado) {
-          const codigoParte = slugParam.substring(slugDetectado.length).replace(/^[- ]+/, '');
+
+        // 1. Prioridade máxima: slug do empreendimento passado via query param
+        if (empreendimentoParam && slugsConhecidos.includes(empreendimentoParam)) {
+          slugDetectado = empreendimentoParam;
           const unidades = getUnidadesByEmpreendimento(slugDetectado);
-          unidadeEncontrada = unidades.find(u => 
-            u.unidade?.trim().toLowerCase() === codigoParte.trim().toLowerCase() || 
-            u.codigo?.toString() === codigoParte.trim()
+          unidadeEncontrada = unidades.find(u =>
+            u.unidade?.trim().toLowerCase() === slugParam.trim().toLowerCase()
           );
-        } 
-        
-        // 2. Fallback: Busca global se falhou ou não tinha prefixo claro
+        }
+
+        // 2. Fallback: busca global (ordem definida por slugsConhecidos)
         if (!unidadeEncontrada) {
           for (const slug of slugsConhecidos) {
             const unidades = getUnidadesByEmpreendimento(slug);
             unidadeEncontrada = unidades.find(u => u.unidade?.trim().toLowerCase() === slugParam.trim().toLowerCase());
             if (unidadeEncontrada) {
-              slugDetectado = slug; // Garante que o slug correto seja capturado mesmo na busca global
+              slugDetectado = slug;
               break;
             }
           }
         }
 
-        if (!unidadeEncontrada) throw new Error(`Unidade "${slugParam}" não encontrada.`);
+        if (!unidadeEncontrada) throw new Error(`Unidade "${slugParam}" não encontrada no empreendimento ${empreendimentoParam || '(qualquer)'}.`);
         if (!slugDetectado) throw new Error('Não foi possível identificar o empreendimento desta unidade.');
 
         setUnidade(unidadeEncontrada);
