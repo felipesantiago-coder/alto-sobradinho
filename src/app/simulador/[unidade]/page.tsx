@@ -47,11 +47,23 @@ interface Parcela {
   descricao: string;
 }
 
+interface ParcelaPosObra {
+  id: string;
+  mes: number;
+  vencimento: string;
+  parcela: number;
+  juros: number;
+  amortizacao: number;
+  saldoDevedor: number;
+}
+
 interface ResultadoSimulacao {
   entrada: number;
   totalObras: number;
   saldoDevedor: number;
   parcelas: Parcela[];
+  parcelasPosObra: ParcelaPosObra[];
+  prestacaoPosObra: number;
 }
 
 export default function SimuladorUnidadePage() {
@@ -85,6 +97,10 @@ export default function SimuladorUnidadePage() {
   
   // Personalização Mensal
   const [valorPrimeiraMensal, setValorPrimeiraMensal] = useState<number | ''>('');
+
+  // Parcelamento Pós-Obra (PRICE)
+  const [habilitarPosObra, setHabilitarPosObra] = useState(false);
+  const [prazoPosObra, setPrazoPosObra] = useState(120);
 
   // Resultados e Validações
   const [resultadoSimulacao, setResultadoSimulacao] = useState<ResultadoSimulacao | null>(null);
@@ -190,7 +206,7 @@ export default function SimuladorUnidadePage() {
     }
 
     calcularSimulacao(dataEntrega);
-  }, [unidade, valorVenda, desconto, percentualCaptação, indiceSelecionado, periodoMedia, indicesData, habilitarParcelasExtras, tipoParcelaExtra, valorBaseParcelaExtra, dataBaseParcelaExtra, valorPrimeiraMensal, temEspacoSemestral, temEspacoAnual, slugEmpreendimentoDetectado]);
+  }, [unidade, valorVenda, desconto, percentualCaptação, indiceSelecionado, periodoMedia, indicesData, habilitarParcelasExtras, tipoParcelaExtra, valorBaseParcelaExtra, dataBaseParcelaExtra, valorPrimeiraMensal, temEspacoSemestral, temEspacoAnual, slugEmpreendimentoDetectado, habilitarPosObra, prazoPosObra]);
 
   async function carregarIndices() {
     setLoadingIndices(true);
@@ -316,15 +332,67 @@ export default function SimuladorUnidadePage() {
     parcelas.sort((a, b) => new Date(a.vencimento).getTime() - new Date(b.vencimento).getTime());
 
     // Saldo Devedor Pós-Obras corrigido pelo índice durante todo o período de obras
-    // O saldo original é corrigido mensalmente desde o mês 1 até o último mês de obras
     const saldoDevedorOriginal = valorFinal - totalCaptação;
     const saldoDevedorCorrigido = saldoDevedorOriginal * Math.pow(1 + taxaMensalDecimal, mesesTotais);
+
+    // --- PARCELAMENTO PÓS-OBRA (TABELA PRICE) ---
+    let parcelasPosObra: ParcelaPosObra[] = [];
+    let prestacaoPosObra = 0;
+
+    if (habilitarPosObra && saldoDevedorCorrigido > 0 && prazoPosObra > 0) {
+      // Taxa do período pós-obra: IPCA + 1% ao mês (composto)
+      // i_pos = (1 + IPCA_mensal) * (1 + 0.01) - 1
+      const dadosIpcParaPosObra = indicesData.ipca;
+      const ipcaMensalPosObra = periodoMedia === '12m' ? dadosIpcParaPosObra.avg12 : periodoMedia === 'projecao' ? dadosIpcParaPosObra.projecao : dadosIpcParaPosObra.avg180;
+      const ipcaDecimalPosObra = ipcaMensalPosObra / 100;
+      const taxaPosObra = (1 + ipcaDecimalPosObra) * 1.01 - 1; // IPCA + 1% compostos
+
+      // PMT (prestação fixa PRICE)
+      const n = prazoPosObra;
+      const i = taxaPosObra;
+      const fator = Math.pow(1 + i, n);
+      prestacaoPosObra = saldoDevedorCorrigido * (i * fator) / (fator - 1);
+
+      // Data de início: mês seguinte à entrega
+      const dataInicioPosObra = new Date(dataEntrega);
+      dataInicioPosObra.setMonth(dataInicioPosObra.getMonth() + 1);
+      dataInicioPosObra.setDate(10);
+
+      let saldoAtual = saldoDevedorCorrigido;
+
+      for (let m = 1; m <= n; m++) {
+        const jurosMes = saldoAtual * i;
+        const amortizacaoMes = prestacaoPosObra - jurosMes;
+
+        const dataVencimento = new Date(dataInicioPosObra);
+        dataVencimento.setMonth(dataVencimento.getMonth() + (m - 1));
+
+        // Saldo devedor = saldo NO INÍCIO do mês (antes do pagamento)
+        parcelasPosObra.push({
+          id: `pos-obra-${m}`,
+          mes: m,
+          vencimento: dataVencimento.toISOString().split('T')[0],
+          parcela: parseFloat(prestacaoPosObra.toFixed(2)),
+          juros: parseFloat(jurosMes.toFixed(2)),
+          amortizacao: parseFloat(amortizacaoMes.toFixed(2)),
+          saldoDevedor: parseFloat(saldoAtual.toFixed(2)),
+        });
+
+        // Atualiza saldo APÓS registrar a parcela
+        saldoAtual = saldoAtual - amortizacaoMes;
+
+        // Evitar saldo negativo por arredondamento
+        if (saldoAtual < 0.01) saldoAtual = 0;
+      }
+    }
 
     setResultadoSimulacao({
       entrada: parseFloat(entrada.toFixed(2)),
       totalObras: parseFloat(totalCaptação.toFixed(2)),
       saldoDevedor: parseFloat(saldoDevedorCorrigido.toFixed(2)),
-      parcelas: parcelas
+      parcelas: parcelas,
+      parcelasPosObra,
+      prestacaoPosObra: parseFloat(prestacaoPosObra.toFixed(2)),
     });
   }
 
@@ -602,6 +670,45 @@ export default function SimuladorUnidadePage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Cartão de Parcelamento Pós-Obra */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center justify-between">
+                  <span>Parcelamento Pós-Obra (PRICE)</span>
+                  <Switch
+                    checked={habilitarPosObra}
+                    onCheckedChange={setHabilitarPosObra}
+                  />
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {habilitarPosObra && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Prazo (meses)</Label>
+                      <Select value={prazoPosObra.toString()} onValueChange={(v) => setPrazoPosObra(Number(v))}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="24">24 meses (2 anos)</SelectItem>
+                          <SelectItem value="60">60 meses (5 anos)</SelectItem>
+                          <SelectItem value="84">84 meses (7 anos)</SelectItem>
+                          <SelectItem value="120">120 meses (10 anos)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Alert variant="default" className="bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900">
+                      <Info className="h-4 w-4 text-amber-600" />
+                      <AlertDescription className="text-xs text-amber-800 dark:text-amber-200">
+                        Tabela PRICE com correção mensal de <b>IPCA + 1% a.m.</b> O saldo devedor pós-obra é corrigido pelo índice de obras durante todo o período de construção.
+                      </AlertDescription>
+                    </Alert>
+                  </>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
           {/* Resultados */}
@@ -678,14 +785,70 @@ export default function SimuladorUnidadePage() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Parcelamento Pós-Obra */}
+                    {resultadoSimulacao.parcelasPosObra.length > 0 && (
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-semibold text-lg">Parcelamento Pós-Obra (PRICE)</h4>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 px-2 py-1 rounded-full font-medium">
+                              {prazoPosObra} meses
+                            </span>
+                            <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-semibold">
+                              R$ {resultadoSimulacao.prestacaoPosObra.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="border rounded-lg overflow-hidden">
+                          <div className="max-h-[400px] overflow-y-auto">
+                            <Table>
+                              <TableHeader className="bg-amber-50/50 dark:bg-amber-950/20 sticky top-0 z-10">
+                                <TableRow>
+                                  <TableHead className="w-[60px] text-center">Mês</TableHead>
+                                  <TableHead>Vencimento</TableHead>
+                                  <TableHead className="text-right">Prestação</TableHead>
+                                  <TableHead className="text-right">Juros</TableHead>
+                                  <TableHead className="text-right">Amortização</TableHead>
+                                  <TableHead className="text-right font-bold">Saldo Devedor</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {resultadoSimulacao.parcelasPosObra.map((p) => (
+                                  <TableRow key={p.id} className="hover:bg-muted/30">
+                                    <TableCell className="font-medium text-center text-muted-foreground">{p.mes}</TableCell>
+                                    <TableCell className="text-sm">{new Date(p.vencimento).toLocaleDateString('pt-BR')}</TableCell>
+                                    <TableCell className="text-right font-mono font-semibold">
+                                      R$ {p.parcela.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    </TableCell>
+                                    <TableCell className="text-right text-muted-foreground text-sm font-mono">
+                                      R$ {p.juros.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    </TableCell>
+                                    <TableCell className="text-right text-sm font-mono">
+                                      R$ {p.amortizacao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    </TableCell>
+                                    <TableCell className="text-right font-bold font-mono text-amber-700 dark:text-amber-400">
+                                      R$ {p.saldoDevedor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     
                     <Alert className="bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800">
                       <CheckCircle2 className="h-4 w-4 text-primary" />
                       <AlertDescription className="ml-2">
                         <p className="font-semibold text-foreground">Resumo:</p>
                         <p className="text-sm text-muted-foreground mt-1">
-                          Simulação baseada no índice {indiceSelecionado} ({periodoMedia === 'projecao' ? dadosIndiceAtivo?.projecao : periodoMedia === '12m' ? dadosIndiceAtivo?.avg12 : dadosIndiceAtivo?.avg180}% a.m.) {periodoMedia === 'projecao' ? ' - Projeção de mercado (Focus Report BCB)' : ` - Média ${periodoMedia === '12m' ? '12' : '180'} meses`}. 
-                          Fonte: {fonteDados}.
+                          Simulação baseada no índice {indiceSelecionado} ({periodoMedia === 'projecao' ? dadosIndiceAtivo?.projecao : periodoMedia === '12m' ? dadosIndiceAtivo?.avg12 : dadosIndiceAtivo?.avg180}% a.m.)
+                          {periodoMedia === 'projecao' ? ' - Projeção de mercado (Focus Report BCB)' : ` - Média ${periodoMedia === '12m' ? '12' : '180'} meses`}.
+                          {habilitarPosObra && prazoPosObra > 0 ? ` Pós-obra: Tabela PRICE ${prazoPosObra} meses (IPCA + 1% a.m.).` : ''}
+                          {' '}Fonte: {fonteDados}.
                         </p>
                       </AlertDescription>
                     </Alert>
