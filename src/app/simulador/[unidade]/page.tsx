@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, TrendingUp, DollarSign, AlertCircle, CheckCircle2, Info, CalendarDays, Building2, Home, Percent, ArrowDown, ChevronRight } from 'lucide-react';
+import { Loader2, TrendingUp, DollarSign, AlertCircle, CheckCircle2, Info, CalendarDays, Building2, Home, Percent, ArrowDown, ChevronRight, ArrowLeft } from 'lucide-react';
 
 // --- DATAS DE ENTREGA ATUALIZADAS E CORRETAS ---
 const deliveryDates: Record<string, Date> = {
@@ -398,9 +398,9 @@ export default function SimuladorUnidadePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900 dark:to-slate-800">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
           <p className="text-muted-foreground">Carregando simulador...</p>
         </div>
       </div>
@@ -410,17 +410,16 @@ export default function SimuladorUnidadePage() {
   if (error || !unidade) {
     return (
       <div className="container mx-auto py-10 px-4">
-        <Card className="border-destructive">
-          <CardHeader>
-            <CardTitle className="text-destructive flex items-center gap-2">
-              <AlertCircle className="h-5 w-5" /> Erro
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>{error || 'Unidade não encontrada.'}</p>
-            <Button onClick={() => router.back()} className="mt-4">Voltar</Button>
-          </CardContent>
-        </Card>
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6 shadow-md">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="font-semibold text-red-800 dark:text-red-200 mb-1">Erro</h3>
+              <p className="text-sm text-red-700 dark:text-red-300">{error || 'Unidade não encontrada.'}</p>
+              <Button onClick={() => router.back()} className="mt-4" variant="outline">Voltar</Button>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -441,45 +440,54 @@ export default function SimuladorUnidadePage() {
 
   // Derived values for structured summary
   const totalBaseObras = resultadoSimulacao ? resultadoSimulacao.parcelas.reduce((s, p) => s + p.valorBase, 0) : 0;
+  const saldoDevedorOriginal = valorFinal - (valorFinal * (percentualCaptação / 100));
+  const totalPosObraJuros = totalPosObraPago - resultadoSimulacao.saldoDevedor;
   const custoTotalEfetivo = resultadoSimulacao ? resultadoSimulacao.entrada + totalPagoObrasCorrigido + totalPosObraPago : 0;
+  const custoTotalObras = resultadoSimulacao ? resultadoSimulacao.entrada + totalPagoObrasCorrigido : 0;
   const percentualCustoSobreVenda = valorFinal > 0 ? ((custoTotalEfetivo / valorFinal) * 100) : 0;
 
   return (
-    <div className="min-h-screen bg-background font-sans">
-      <header className="border-b sticky top-0 bg-background/95 backdrop-blur z-50">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/" className="text-sm font-medium hover:text-primary transition-colors">
-              ← Voltar
-            </Link>
-            <h1 className="text-lg font-bold hidden sm:block truncate">
-              {unidade.bloco} - {unidade.unidade}
-            </h1>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900 dark:to-slate-800 font-sans">
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
+        {/* Top Bar: Back + Theme */}
+        <div className="mb-6 flex items-center justify-between">
+          <Link href="/">
+            <Button variant="ghost" className="gap-2">
+              <ArrowLeft className="w-4 h-4" />
+              Voltar
+            </Button>
+          </Link>
           <ThemeToggleSimple />
         </div>
-      </header>
 
-      <main className="container mx-auto px-4 py-8 space-y-6">
-        
-        {/* Header da Unidade */}
-        <Card className="bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
-          <CardContent className="py-5">
+        {/* Page Header with Logo */}
+        <div className="mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-2">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl sm:rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-500/25">
+              <img src="/logo.svg" alt="QB" className="w-8 h-8 sm:w-9 sm:h-9" />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 dark:text-white">
+                {unidade.bloco} - {unidade.unidade}
+              </h1>
+              <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400">
+                {unidade.quartos} Quartos · {unidade.banheiros} Banheiros · {unidade.areaUtil} m²
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Unidade Info Card */}
+        <Card className="shadow-md border-0 bg-white/80 backdrop-blur dark:bg-slate-800/80 mb-8">
+          <CardContent className="py-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <Building2 className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-foreground">{unidade.bloco} - {unidade.unidade}</h2>
-                  <p className="text-sm text-muted-foreground">{unidade.quartos} Quartos • {unidade.banheiros} Banheiros • {unidade.areaUtil} m²</p>
-                </div>
-              </div>
-              <div className="text-left sm:text-right">
+              <div className="text-left sm:text-left">
                 <p className="text-xs text-muted-foreground">Valor de Venda</p>
-                <p className="text-xl font-bold text-primary">R$ {valorVenda.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                  R$ {valorVenda.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </p>
                 {desconto > 0 && (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground mt-1">
                     Desconto: R$ {desconto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} → <span className="font-semibold text-foreground">Final: R$ {valorFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                   </p>
                 )}
@@ -492,7 +500,7 @@ export default function SimuladorUnidadePage() {
           
           {/* Controles */}
           <div className="lg:col-span-5 space-y-6">
-            <Card>
+            <Card className="shadow-md border-0 bg-white/80 backdrop-blur dark:bg-slate-800/80">
               <CardHeader>
                 <CardTitle>Parâmetros Financeiros</CardTitle>
               </CardHeader>
@@ -621,7 +629,7 @@ export default function SimuladorUnidadePage() {
             </Card>
 
             {/* Cartão de Parcelas Extras */}
-            <Card>
+            <Card className="shadow-md border-0 bg-white/80 backdrop-blur dark:bg-slate-800/80">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center justify-between">
                   <span>Parcelas Extras Inteligentes</span>
@@ -690,7 +698,7 @@ export default function SimuladorUnidadePage() {
             </Card>
 
             {/* Cartão de Parcelamento Pós-Obra */}
-            <Card>
+            <Card className="shadow-md border-0 bg-white/80 backdrop-blur dark:bg-slate-800/80">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center justify-between">
                   <span>Parcelamento Pós-Obra (PRICE)</span>
@@ -734,7 +742,7 @@ export default function SimuladorUnidadePage() {
             {resultadoSimulacao ? (
               <>
                 {/* Card 1: Fluxo de Pagamento */}
-                <Card className="shadow-lg">
+                <Card className="shadow-lg border-0 bg-white/80 backdrop-blur dark:bg-slate-800/80">
                   <CardHeader className="bg-primary/5 border-b border-primary/10">
                     <CardTitle className="flex items-center gap-2 text-primary">
                       <TrendingUp className="h-5 w-5" />
@@ -791,8 +799,9 @@ export default function SimuladorUnidadePage() {
                     </div>
 
                     {/* Structured Financial Summary */}
-                    <div className="space-y-3">
-                      {/* Row 0: Valor Total */}
+                    <div className="space-y-4">
+
+                      {/* ====== SEÇÃO 1: VALOR TOTAL DO IMÓVEL ====== */}
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg border bg-muted/30">
                         <div className="flex items-center gap-2">
                           <Percent className="h-4 w-4 text-muted-foreground" />
@@ -803,102 +812,226 @@ export default function SimuladorUnidadePage() {
                         </span>
                       </div>
 
-                      {/* Row 1: Entrada */}
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/20">
-                        <div className="flex items-center gap-2">
-                          <div className="h-2 w-2 rounded-full bg-green-500" />
-                          <span className="text-sm font-semibold text-green-800 dark:text-green-300">1. Entrada (Sinal) — 10%</span>
+                      {/* ====== SEÇÃO 2: DURANTE AS OBRAS ====== */}
+                      <div className="rounded-lg border-2 border-blue-200 dark:border-blue-900 overflow-hidden">
+                        <div className="bg-blue-50 dark:bg-blue-950/30 px-3 py-2 border-b border-blue-200 dark:border-blue-900">
+                          <span className="text-xs font-bold text-blue-800 dark:text-blue-300 uppercase tracking-wide">Período de Obras</span>
+                          <span className="text-[11px] text-blue-600 dark:text-blue-400 ml-2">{mesesObras} meses • {indiceSelecionado} ({taxaAtiva.toFixed(3)}% a.m.)</span>
                         </div>
-                        <span className="text-sm font-bold font-mono text-green-700 dark:text-green-400">
-                          R$ {resultadoSimulacao.entrada.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </span>
-                      </div>
+                        <div className="p-3 space-y-2.5">
 
-                      {/* Row 2: Período de Obras */}
-                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 p-3 rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/20">
-                        <div className="flex items-start sm:items-center gap-2">
-                          <div className="h-2 w-2 rounded-full bg-blue-500 mt-1 sm:mt-0" />
-                          <div>
-                            <span className="text-sm font-semibold text-blue-800 dark:text-blue-300">
-                              2. Período de Obras — {percentualCaptação}%
+                          {/* Entrada */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                            <div className="flex items-center gap-2">
+                              <div className="h-2 w-2 rounded-full bg-green-500" />
+                              <span className="text-sm font-semibold text-green-800 dark:text-green-300">Entrada (Sinal)</span>
+                              <span className="text-xs text-muted-foreground">— 10%</span>
+                            </div>
+                            <span className="text-sm font-bold font-mono text-green-700 dark:text-green-400">
+                              R$ {resultadoSimulacao.entrada.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                             </span>
-                            <p className="text-[11px] text-blue-600 dark:text-blue-400 mt-0.5">
-                              {mesesObras} meses • {indiceSelecionado} ({taxaAtiva.toFixed(3)}% a.m.)
-                            </p>
+                          </div>
+
+                          {/* Parcelas Mensais + Extras */}
+                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-1.5">
+                            <div className="flex items-start gap-2">
+                              <div className="h-2 w-2 rounded-full bg-blue-500 mt-1" />
+                              <div>
+                                <span className="text-sm font-semibold text-blue-800 dark:text-blue-300">Parcelas ({percentualCaptação}% − entrada)</span>
+                                <p className="text-[11px] text-blue-600 dark:text-blue-400">
+                                  {resultadoSimulacao.parcelas.length} parcelas • corrigidas pelo {indiceSelecionado}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-muted-foreground">
+                                Base: R$ {totalBaseObras.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Correção: +R$ {(totalPagoObrasCorrigido - totalBaseObras).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </p>
+                              <p className="text-sm font-bold font-mono text-blue-700 dark:text-blue-400">
+                                Corrigido: R$ {totalPagoObrasCorrigido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Subtotal Obras */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pt-2 mt-1 border-t border-blue-200 dark:border-blue-800">
+                            <span className="text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wide">Total Pago nas Obras</span>
+                            <span className="text-sm font-bold font-mono text-blue-800 dark:text-blue-200">
+                              R$ {custoTotalObras.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </span>
                           </div>
                         </div>
-                        <div className="text-right sm:text-right">
-                          <p className="text-xs text-muted-foreground line-through">
-                            Base: R$ {totalBaseObras.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </p>
-                          <p className="text-sm font-bold font-mono text-blue-700 dark:text-blue-400">
-                            R$ {totalPagoObrasCorrigido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </p>
-                        </div>
                       </div>
 
-                      {/* Row 3: Saldo Devedor Pós-Obra */}
-                      <div className={`flex flex-col sm:flex-row sm:items-start justify-between gap-2 p-3 rounded-lg border ${
+                      {/* ====== SEÇÃO 3: PÓS-OBRA ====== */}
+                      <div className={`rounded-lg border-2 overflow-hidden ${
                         habilitarPosObra && resultadoSimulacao.parcelasPosObra.length > 0
-                          ? 'border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/20'
-                          : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50'
+                          ? 'border-amber-200 dark:border-amber-900'
+                          : 'border-slate-200 dark:border-slate-800'
                       }`}>
-                        <div className="flex items-start sm:items-center gap-2">
-                          <div className={`h-2 w-2 rounded-full ${
+                        <div className={`px-3 py-2 border-b ${
+                          habilitarPosObra && resultadoSimulacao.parcelasPosObra.length > 0
+                            ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900'
+                            : 'bg-slate-50 dark:bg-slate-950/30 border-slate-200 dark:border-slate-800'
+                        }`}>
+                          <span className={`text-xs font-bold uppercase tracking-wide ${
                             habilitarPosObra && resultadoSimulacao.parcelasPosObra.length > 0
-                              ? 'bg-amber-500' : 'bg-slate-500'
-                          }`} />
-                          <div>
-                            <span className={`text-sm font-semibold ${
-                              habilitarPosObra && resultadoSimulacao.parcelasPosObra.length > 0
-                                ? 'text-amber-800 dark:text-amber-300' : 'text-slate-800 dark:text-slate-300'
-                            }`}>
-                              3. Saldo Devedor Pós-Obra — {100 - percentualCaptação}%
-                            </span>
-                            <p className={`text-[11px] mt-0.5 ${
-                              habilitarPosObra && resultadoSimulacao.parcelasPosObra.length > 0
-                                ? 'text-amber-600 dark:text-amber-400' : 'text-slate-600 dark:text-slate-400'
-                            }`}>
-                              Corrigido pelo {indiceSelecionado} durante {mesesObras} meses de obra
-                              {habilitarPosObra && resultadoSimulacao.parcelasPosObra.length > 0 && (
-                                <> • PRICE {prazoPosObra} meses: <b>R$ {resultadoSimulacao.prestacaoPosObra.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês</b></>
-                              )}
-                            </p>
-                          </div>
+                              ? 'text-amber-800 dark:text-amber-300'
+                              : 'text-slate-700 dark:text-slate-300'
+                          }`}>
+                            Pós-Obra
+                          </span>
+                          <span className={`text-[11px] ml-2 ${
+                            habilitarPosObra && resultadoSimulacao.parcelasPosObra.length > 0
+                              ? 'text-amber-600 dark:text-amber-400'
+                              : 'text-slate-500 dark:text-slate-500'
+                          }`}>
+                            {habilitarPosObra && resultadoSimulacao.parcelasPosObra.length > 0
+                              ? `${prazoPosObra} meses • PRICE (IPCA + 1% a.m.)`
+                              : `Saldo restante a ser quitado na entrega`
+                            }
+                          </span>
                         </div>
-                        <div className="text-right">
-                          <p className="text-sm font-bold font-mono text-amber-700 dark:text-amber-400">
-                            R$ {resultadoSimulacao.saldoDevedor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </p>
-                          {totalPosObraPago > 0 && (
-                            <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">
-                              Total Pós-Obra: R$ {totalPosObraPago.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                            </p>
+                        <div className="p-3 space-y-2.5">
+
+                          {/* Saldo Devedor Base vs Corrigido */}
+                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-1.5">
+                            <div className="flex items-start gap-2">
+                              <div className={`h-2 w-2 rounded-full mt-1 ${
+                                habilitarPosObra && resultadoSimulacao.parcelasPosObra.length > 0
+                                  ? 'bg-amber-500' : 'bg-slate-500'
+                              }`} />
+                              <div>
+                                <span className={`text-sm font-semibold ${
+                                  habilitarPosObra && resultadoSimulacao.parcelasPosObra.length > 0
+                                    ? 'text-amber-800 dark:text-amber-300' : 'text-slate-800 dark:text-slate-300'
+                                }`}>
+                                  Saldo Devedor — {100 - percentualCaptação}%
+                                </span>
+                                <p className={`text-[11px] mt-0.5 ${
+                                  habilitarPosObra && resultadoSimulacao.parcelasPosObra.length > 0
+                                    ? 'text-amber-600 dark:text-amber-400' : 'text-slate-600 dark:text-slate-400'
+                                }`}>
+                                  Corrigido pelo {indiceSelecionado} durante {mesesObras} meses de obra
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-muted-foreground">
+                                Base: R$ {saldoDevedorOriginal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Correção: +R$ {(resultadoSimulacao.saldoDevedor - saldoDevedorOriginal).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </p>
+                              <p className={`text-sm font-bold font-mono ${
+                                habilitarPosObra && resultadoSimulacao.parcelasPosObra.length > 0
+                                  ? 'text-amber-700 dark:text-amber-400'
+                                  : 'text-slate-700 dark:text-slate-400'
+                              }`}>
+                                Corrigido: R$ {resultadoSimulacao.saldoDevedor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Parcelamento PRICE (quando habilitado) */}
+                          {habilitarPosObra && resultadoSimulacao.parcelasPosObra.length > 0 && (
+                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-1.5">
+                              <div className="flex items-start gap-2">
+                                <div className="h-2 w-2 rounded-full bg-amber-500 mt-1" />
+                                <div>
+                                  <span className="text-sm font-semibold text-amber-800 dark:text-amber-300">Parcelamento PRICE</span>
+                                  <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                                    Prestação fixa • {prazoPosObra} meses
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-xs text-muted-foreground">
+                                  Juros totais: R$ {totalPosObraJuros.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Amortização: R$ {resultadoSimulacao.saldoDevedor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </p>
+                                <p className="text-sm font-bold font-mono text-amber-700 dark:text-amber-400">
+                                  Total: R$ {totalPosObraPago.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </p>
+                              </div>
+                            </div>
                           )}
+
+                          {/* Subtotal Pós-Obra */}
+                          <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pt-2 mt-1 border-t ${
+                            habilitarPosObra && resultadoSimulacao.parcelasPosObra.length > 0
+                              ? 'border-amber-200 dark:border-amber-800'
+                              : 'border-slate-200 dark:border-slate-700'
+                          }`}>
+                            <span className={`text-xs font-bold uppercase tracking-wide ${
+                              habilitarPosObra && resultadoSimulacao.parcelasPosObra.length > 0
+                                ? 'text-amber-700 dark:text-amber-300'
+                                : 'text-slate-600 dark:text-slate-400'
+                            }`}>
+                              Total Pós-Obra
+                            </span>
+                            <span className={`text-sm font-bold font-mono ${
+                              habilitarPosObra && resultadoSimulacao.parcelasPosObra.length > 0
+                                ? 'text-amber-800 dark:text-amber-200'
+                                : 'text-slate-700 dark:text-slate-400'
+                            }`}>
+                              R$ {(habilitarPosObra && resultadoSimulacao.parcelasPosObra.length > 0 ? totalPosObraPago : resultadoSimulacao.saldoDevedor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
                         </div>
                       </div>
 
-                      {/* Row 4: Custo Total Efetivo */}
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg border-2 border-primary/30 bg-primary/5">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle2 className="h-4 w-4 text-primary" />
-                          <span className="text-sm font-bold text-primary">Custo Total Efetivo</span>
+                      {/* ====== SEÇÃO 4: RESUMO GERAL ====== */}
+                      {habilitarPosObra && resultadoSimulacao.parcelasPosObra.length > 0 ? (
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-4 rounded-lg border-2 border-primary/30 bg-primary/5">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="h-5 w-5 text-primary" />
+                            <div>
+                              <span className="text-sm font-bold text-primary">Total Geral Pago</span>
+                              <p className="text-[11px] text-primary/60">Obras + Pós-Obra</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-base font-bold font-mono text-primary">
+                              R$ {custoTotalEfetivo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </p>
+                            <p className="text-[11px] text-primary/70">
+                              {percentualCustoSobreVenda.toFixed(1)}% do valor do imóvel
+                            </p>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-sm font-bold font-mono text-primary">
-                            R$ {custoTotalEfetivo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </p>
-                          <p className="text-[11px] text-primary/70">
-                            {percentualCustoSobreVenda.toFixed(1)}% do valor final
-                          </p>
+                      ) : (
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-4 rounded-lg border-2 border-primary/30 bg-primary/5">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="h-5 w-5 text-primary" />
+                            <div>
+                              <span className="text-sm font-bold text-primary">Total Pago nas Obras</span>
+                              <p className="text-[11px] text-primary/60">Entrada + Parcelas Corrigidas</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-base font-bold font-mono text-primary">
+                              R$ {custoTotalObras.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </p>
+                            <p className="text-[11px] text-primary/70">
+                              {((custoTotalObras / valorFinal) * 100).toFixed(1)}% do valor do imóvel
+                            </p>
+                            <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1">
+                              + Saldo devedor de R$ {resultadoSimulacao.saldoDevedor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} pendente na entrega
+                            </p>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* Card 2: Parcelas Durante as Obras */}
-                <Card>
+                <Card className="shadow-md border-0 bg-white/80 backdrop-blur dark:bg-slate-800/80">
                   <CardHeader className="bg-blue-50/50 dark:bg-blue-950/20 border-b border-blue-100 dark:border-blue-900">
                     <div className="flex items-center justify-between">
                       <CardTitle className="flex items-center gap-2 text-blue-800 dark:text-blue-300">
@@ -983,7 +1116,7 @@ export default function SimuladorUnidadePage() {
 
                 {/* Card 3: Parcelamento Pós-Obra (only if enabled) */}
                 {resultadoSimulacao.parcelasPosObra.length > 0 && (
-                  <Card>
+                  <Card className="shadow-md border-0 bg-white/80 backdrop-blur dark:bg-slate-800/80">
                     <CardHeader className="bg-amber-50/50 dark:bg-amber-950/20 border-b border-amber-100 dark:border-amber-900">
                       <div className="flex items-center justify-between">
                         <CardTitle className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
@@ -1086,7 +1219,7 @@ export default function SimuladorUnidadePage() {
                 </Alert>
               </>
             ) : (
-              <Card className="shadow-lg">
+              <Card className="shadow-lg border-0 bg-white/80 backdrop-blur dark:bg-slate-800/80">
                 <CardContent className="min-h-[300px] flex flex-col items-center justify-center text-muted-foreground space-y-4">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground/50" />
                   <p>Calculando melhores condições...</p>
@@ -1095,7 +1228,7 @@ export default function SimuladorUnidadePage() {
             )}
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
