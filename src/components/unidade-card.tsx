@@ -81,7 +81,8 @@ export function UnidadeCard({
         empreendimento: empreendimentoSlug,
         unidade: unidade,
         tipologia: tipologia,
-        area: areaPrivativa
+        area: areaPrivativa,
+        posicaoSol: posicaoSol
       })
 
       router.push(`/simulador/${unidade}?${params.toString()}`)
