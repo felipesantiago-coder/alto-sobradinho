@@ -441,7 +441,7 @@ export default function SimuladorUnidadePage() {
   // Derived values for structured summary
   const totalBaseObras = resultadoSimulacao ? resultadoSimulacao.parcelas.reduce((s, p) => s + p.valorBase, 0) : 0;
   const saldoDevedorOriginal = valorFinal - (valorFinal * (percentualCaptação / 100));
-  const totalPosObraJuros = totalPosObraPago - resultadoSimulacao.saldoDevedor;
+  const totalPosObraJuros = resultadoSimulacao ? totalPosObraPago - resultadoSimulacao.saldoDevedor : 0;
   const custoTotalEfetivo = resultadoSimulacao ? resultadoSimulacao.entrada + totalPagoObrasCorrigido + totalPosObraPago : 0;
   const custoTotalObras = resultadoSimulacao ? resultadoSimulacao.entrada + totalPagoObrasCorrigido : 0;
   const percentualCustoSobreVenda = valorFinal > 0 ? ((custoTotalEfetivo / valorFinal) * 100) : 0;
