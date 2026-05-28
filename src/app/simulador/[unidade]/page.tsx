@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ThemeToggleSimple } from '@/components/theme-toggle-simple';
-import { getUnidadesByEmpreendimento } from '@/data/static-data';
-import { Unidade } from '@/types/unidade';
+import { getUnidadesByEmpreendimento, Unidade } from '@/data/static-data';
+import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -150,7 +150,8 @@ export default function SimuladorUnidadePage() {
 
         setUnidade(unidadeEncontrada);
         setSlugEmpreendimentoDetectado(slugDetectado); // Salva o slug correto para uso no cálculo
-        setValorVenda(unidadeEncontrada.valorVenda || 0);
+        const vv = unidadeEncontrada.valorVenda;
+        setValorVenda(typeof vv === 'string' ? parseFloat(vv) || 0 : vv || 0);
 
         // Configura datas base para parcelas extras
         const hoje = new Date();
@@ -468,33 +469,29 @@ export default function SimuladorUnidadePage() {
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 dark:text-white">
-                {unidade.bloco} - {unidade.unidade}
+                {unidade.unidade}
               </h1>
-              <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400">
-                {unidade.quartos} Quartos · {unidade.banheiros} Banheiros · {unidade.areaUtil} m²
-              </p>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
+                <span className="text-sm sm:text-base text-slate-600 dark:text-slate-400">
+                  {unidade.tipologia}
+                </span>
+                <span className="text-muted-foreground/40">·</span>
+                <span className="text-sm sm:text-base text-slate-600 dark:text-slate-400">
+                  {unidade.areaPrivativa}
+                </span>
+                <span className="text-muted-foreground/40">·</span>
+                <span className={cn(
+                  'text-sm sm:text-base font-medium',
+                  unidade.posicaoSol === 'Nascente'
+                    ? 'text-yellow-600 dark:text-yellow-400'
+                    : 'text-blue-600 dark:text-blue-400'
+                )}>
+                  {unidade.posicaoSol}
+                </span>
+              </div>
             </div>
           </div>
         </div>
-
-        {/* Unidade Info Card */}
-        <Card className="shadow-md border-0 bg-white/80 backdrop-blur dark:bg-slate-800/80 mb-8">
-          <CardContent className="py-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="text-left sm:text-left">
-                <p className="text-xs text-muted-foreground">Valor de Venda</p>
-                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                  R$ {valorVenda.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                </p>
-                {desconto > 0 && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Desconto: R$ {desconto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} → <span className="font-semibold text-foreground">Final: R$ {valorFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                  </p>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
