@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, TrendingUp, DollarSign, AlertCircle, CheckCircle2, Info } from 'lucide-react';
+import { Loader2, TrendingUp, DollarSign, AlertCircle, CheckCircle2, Info, CalendarDays, Building2, Home, Percent, ArrowDown, ChevronRight } from 'lucide-react';
 
 // --- DATAS DE ENTREGA ATUALIZADAS E CORRETAS ---
 const deliveryDates: Record<string, Date> = {
@@ -428,6 +428,22 @@ export default function SimuladorUnidadePage() {
   const dadosIndiceAtivo = indicesData ? (indiceSelecionado === 'INCC' ? indicesData.incc : indicesData.ipca) : null;
   const fonteDados = dadosIndiceAtivo?.isFallback ? "Estimados (Fallback)" : "Oficiais (Bacen/FGV)";
 
+  // Valores derivados para o resumo
+  const valorFinal = valorVenda - desconto;
+  const dataEntregaAtual = slugEmpreendimentoDetectado ? deliveryDates[slugEmpreendimentoDetectado] : null;
+  const mesesObras = dataEntregaAtual ? (() => {
+    const hoje = new Date();
+    return Math.max(1, (dataEntregaAtual.getFullYear() - hoje.getFullYear()) * 12 + (dataEntregaAtual.getMonth() - hoje.getMonth()));
+  })() : 0;
+  const totalPagoObrasCorrigido = resultadoSimulacao ? resultadoSimulacao.parcelas.reduce((s, p) => s + p.valorCorrigido, 0) : 0;
+  const totalPosObraPago = resultadoSimulacao ? resultadoSimulacao.parcelasPosObra.reduce((s, p) => s + p.parcela, 0) : 0;
+  const taxaAtiva = dadosIndiceAtivo ? (periodoMedia === 'projecao' ? dadosIndiceAtivo.projecao : periodoMedia === '12m' ? dadosIndiceAtivo.avg12 : dadosIndiceAtivo.avg180) : 0;
+
+  // Derived values for structured summary
+  const totalBaseObras = resultadoSimulacao ? resultadoSimulacao.parcelas.reduce((s, p) => s + p.valorBase, 0) : 0;
+  const custoTotalEfetivo = resultadoSimulacao ? resultadoSimulacao.entrada + totalPagoObrasCorrigido + totalPosObraPago : 0;
+  const percentualCustoSobreVenda = valorFinal > 0 ? ((custoTotalEfetivo / valorFinal) * 100) : 0;
+
   return (
     <div className="min-h-screen bg-background font-sans">
       <header className="border-b sticky top-0 bg-background/95 backdrop-blur z-50">
@@ -444,28 +460,30 @@ export default function SimuladorUnidadePage() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 space-y-8">
+      <main className="container mx-auto px-4 py-8 space-y-6">
         
-        {/* Resumo da Unidade */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <DollarSign className="h-5 w-5 text-primary" />
-              Detalhes da Unidade
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Valor de Venda</p>
-              <p className="text-lg font-bold text-foreground">R$ {valorVenda.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Área Útil</p>
-              <p className="text-lg font-semibold text-foreground">{unidade.areaUtil} m²</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Configuração</p>
-              <p className="text-lg font-semibold text-foreground">{unidade.quartos} Quartos • {unidade.banheiros} Banheiros</p>
+        {/* Header da Unidade */}
+        <Card className="bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
+          <CardContent className="py-5">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Building2 className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-foreground">{unidade.bloco} - {unidade.unidade}</h2>
+                  <p className="text-sm text-muted-foreground">{unidade.quartos} Quartos • {unidade.banheiros} Banheiros • {unidade.areaUtil} m²</p>
+                </div>
+              </div>
+              <div className="text-left sm:text-right">
+                <p className="text-xs text-muted-foreground">Valor de Venda</p>
+                <p className="text-xl font-bold text-primary">R$ {valorVenda.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                {desconto > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Desconto: R$ {desconto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} → <span className="font-semibold text-foreground">Final: R$ {valorFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  </p>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -712,155 +730,369 @@ export default function SimuladorUnidadePage() {
           </div>
 
           {/* Resultados */}
-          <div className="lg:col-span-7">
-            <Card className="h-full flex flex-col shadow-lg border-primary/20">
-              <CardHeader className="bg-primary/5 border-b border-primary/10">
-                <CardTitle className="flex items-center gap-2 text-primary">
-                  <TrendingUp className="h-5 w-5" />
-                  Resultado da Simulação
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex-1 overflow-auto p-6 space-y-6">
-                {resultadoSimulacao ? (
-                  <>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div className="p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-100 dark:border-green-900">
-                        <p className="text-sm text-green-800 dark:text-green-200 font-medium mb-1">Entrada (Sinal)</p>
-                        <p className="text-xl font-bold text-green-700 dark:text-green-400">
-                          R$ {resultadoSimulacao.entrada.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </p>
+          <div className="lg:col-span-7 space-y-6">
+            {resultadoSimulacao ? (
+              <>
+                {/* Card 1: Fluxo de Pagamento */}
+                <Card className="shadow-lg">
+                  <CardHeader className="bg-primary/5 border-b border-primary/10">
+                    <CardTitle className="flex items-center gap-2 text-primary">
+                      <TrendingUp className="h-5 w-5" />
+                      Fluxo de Pagamento
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6 space-y-6">
+                    {/* Visual Timeline */}
+                    <div className="flex items-center justify-center gap-1 sm:gap-2 overflow-x-auto py-2 px-1">
+                      {/* Step 1: Entrada */}
+                      <div className="flex flex-col items-center gap-1.5 min-w-[64px]">
+                        <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center ring-2 ring-green-300 dark:ring-green-700">
+                          <DollarSign className="h-4 w-4 text-green-700 dark:text-green-400" />
+                        </div>
+                        <span className="text-[10px] sm:text-xs font-semibold text-green-700 dark:text-green-400 text-center leading-tight">Entrada</span>
+                        <span className="text-[9px] sm:text-[10px] text-muted-foreground text-center leading-tight">10%</span>
                       </div>
-                      <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-100 dark:border-blue-900">
-                        <p className="text-sm text-blue-800 dark:text-blue-200 font-medium mb-1">Total Obras</p>
-                        <p className="text-xl font-bold text-blue-700 dark:text-blue-400">
-                          R$ {resultadoSimulacao.totalObras.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </p>
+
+                      <ChevronRight className="h-5 w-5 text-green-300 dark:text-green-700 flex-shrink-0" />
+
+                      {/* Step 2: Obras */}
+                      <div className="flex flex-col items-center gap-1.5 min-w-[64px]">
+                        <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center ring-2 ring-blue-300 dark:ring-blue-700">
+                          <Building2 className="h-4 w-4 text-blue-700 dark:text-blue-400" />
+                        </div>
+                        <span className="text-[10px] sm:text-xs font-semibold text-blue-700 dark:text-blue-400 text-center leading-tight">Obras</span>
+                        <span className="text-[9px] sm:text-[10px] text-muted-foreground text-center leading-tight">{mesesObras} meses</span>
                       </div>
-                      <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800">
-                        <p className="text-sm text-slate-800 dark:text-slate-200 font-medium mb-1">Saldo Pós-Obra</p>
-                        <p className="text-xl font-bold text-slate-700 dark:text-slate-400">
-                          R$ {resultadoSimulacao.saldoDevedor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </p>
+
+                      <ChevronRight className="h-5 w-5 text-blue-300 dark:text-blue-700 flex-shrink-0" />
+
+                      {/* Step 3: Entrega */}
+                      <div className="flex flex-col items-center gap-1.5 min-w-[64px]">
+                        <div className="h-10 w-10 rounded-full bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center ring-2 ring-purple-300 dark:ring-purple-700">
+                          <CalendarDays className="h-4 w-4 text-purple-700 dark:text-purple-400" />
+                        </div>
+                        <span className="text-[10px] sm:text-xs font-semibold text-purple-700 dark:text-purple-400 text-center leading-tight">Entrega</span>
+                        <span className="text-[9px] sm:text-[10px] text-muted-foreground text-center leading-tight">{dataEntregaAtual ? new Date(dataEntregaAtual).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' }) : '-'}</span>
                       </div>
+
+                      {habilitarPosObra && resultadoSimulacao.parcelasPosObra.length > 0 && (
+                        <>
+                          <ChevronRight className="h-5 w-5 text-purple-300 dark:text-purple-700 flex-shrink-0" />
+                          {/* Step 4: Pós-Obra */}
+                          <div className="flex flex-col items-center gap-1.5 min-w-[64px]">
+                            <div className="h-10 w-10 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center ring-2 ring-amber-300 dark:ring-amber-700">
+                              <Home className="h-4 w-4 text-amber-700 dark:text-amber-400" />
+                            </div>
+                            <span className="text-[10px] sm:text-xs font-semibold text-amber-700 dark:text-amber-400 text-center leading-tight">Pós-Obra</span>
+                            <span className="text-[9px] sm:text-[10px] text-muted-foreground text-center leading-tight">{prazoPosObra} meses</span>
+                          </div>
+                        </>
+                      )}
                     </div>
 
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-semibold text-lg">Fluxo de Pagamentos (Obras)</h4>
-                        <span className="text-xs bg-muted px-2 py-1 rounded-full text-muted-foreground">
-                          {resultadoSimulacao.parcelas.length} parcelas
+                    {/* Structured Financial Summary */}
+                    <div className="space-y-3">
+                      {/* Row 0: Valor Total */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg border bg-muted/30">
+                        <div className="flex items-center gap-2">
+                          <Percent className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-semibold text-muted-foreground">Valor Total do Imóvel</span>
+                        </div>
+                        <span className="text-sm font-bold font-mono">
+                          R$ {valorFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </span>
                       </div>
-                      
+
+                      {/* Row 1: Entrada */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/20">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-2 rounded-full bg-green-500" />
+                          <span className="text-sm font-semibold text-green-800 dark:text-green-300">1. Entrada (Sinal) — 10%</span>
+                        </div>
+                        <span className="text-sm font-bold font-mono text-green-700 dark:text-green-400">
+                          R$ {resultadoSimulacao.entrada.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+
+                      {/* Row 2: Período de Obras */}
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 p-3 rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/20">
+                        <div className="flex items-start sm:items-center gap-2">
+                          <div className="h-2 w-2 rounded-full bg-blue-500 mt-1 sm:mt-0" />
+                          <div>
+                            <span className="text-sm font-semibold text-blue-800 dark:text-blue-300">
+                              2. Período de Obras — {percentualCaptação}%
+                            </span>
+                            <p className="text-[11px] text-blue-600 dark:text-blue-400 mt-0.5">
+                              {mesesObras} meses • {indiceSelecionado} ({taxaAtiva.toFixed(3)}% a.m.)
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right sm:text-right">
+                          <p className="text-xs text-muted-foreground line-through">
+                            Base: R$ {totalBaseObras.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
+                          <p className="text-sm font-bold font-mono text-blue-700 dark:text-blue-400">
+                            R$ {totalPagoObrasCorrigido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Row 3: Saldo Devedor Pós-Obra */}
+                      <div className={`flex flex-col sm:flex-row sm:items-start justify-between gap-2 p-3 rounded-lg border ${
+                        habilitarPosObra && resultadoSimulacao.parcelasPosObra.length > 0
+                          ? 'border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/20'
+                          : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50'
+                      }`}>
+                        <div className="flex items-start sm:items-center gap-2">
+                          <div className={`h-2 w-2 rounded-full ${
+                            habilitarPosObra && resultadoSimulacao.parcelasPosObra.length > 0
+                              ? 'bg-amber-500' : 'bg-slate-500'
+                          }`} />
+                          <div>
+                            <span className={`text-sm font-semibold ${
+                              habilitarPosObra && resultadoSimulacao.parcelasPosObra.length > 0
+                                ? 'text-amber-800 dark:text-amber-300' : 'text-slate-800 dark:text-slate-300'
+                            }`}>
+                              3. Saldo Devedor Pós-Obra — {100 - percentualCaptação}%
+                            </span>
+                            <p className={`text-[11px] mt-0.5 ${
+                              habilitarPosObra && resultadoSimulacao.parcelasPosObra.length > 0
+                                ? 'text-amber-600 dark:text-amber-400' : 'text-slate-600 dark:text-slate-400'
+                            }`}>
+                              Corrigido pelo {indiceSelecionado} durante {mesesObras} meses de obra
+                              {habilitarPosObra && resultadoSimulacao.parcelasPosObra.length > 0 && (
+                                <> • PRICE {prazoPosObra} meses: <b>R$ {resultadoSimulacao.prestacaoPosObra.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês</b></>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold font-mono text-amber-700 dark:text-amber-400">
+                            R$ {resultadoSimulacao.saldoDevedor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
+                          {totalPosObraPago > 0 && (
+                            <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">
+                              Total Pós-Obra: R$ {totalPosObraPago.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Row 4: Custo Total Efetivo */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg border-2 border-primary/30 bg-primary/5">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-primary" />
+                          <span className="text-sm font-bold text-primary">Custo Total Efetivo</span>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold font-mono text-primary">
+                            R$ {custoTotalEfetivo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
+                          <p className="text-[11px] text-primary/70">
+                            {percentualCustoSobreVenda.toFixed(1)}% do valor final
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Card 2: Parcelas Durante as Obras */}
+                <Card>
+                  <CardHeader className="bg-blue-50/50 dark:bg-blue-950/20 border-b border-blue-100 dark:border-blue-900">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-2 text-blue-800 dark:text-blue-300">
+                        <Building2 className="h-5 w-5" />
+                        Parcelas Durante as Obras
+                      </CardTitle>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 px-2 py-1 rounded-full font-medium">
+                          {resultadoSimulacao.parcelas.length} parcelas
+                        </span>
+                        <span className="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-1 rounded-full font-semibold flex items-center gap-1">
+                          <Percent className="h-3 w-3" />
+                          {taxaAtiva.toFixed(3)}%
+                        </span>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="border rounded-lg overflow-hidden">
+                      <div className="max-h-[420px] overflow-y-auto">
+                        <Table>
+                          <TableHeader className="bg-muted/50 sticky top-0 z-10">
+                            <TableRow>
+                              <TableHead className="w-[60px] text-center">Nº</TableHead>
+                              <TableHead>Tipo</TableHead>
+                              <TableHead>Vencimento</TableHead>
+                              <TableHead className="text-right">Valor Base</TableHead>
+                              <TableHead className="text-center">Fator Corr.</TableHead>
+                              <TableHead className="text-right font-bold text-primary">Valor Corrigido</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {resultadoSimulacao.parcelas.map((p, i) => (
+                              <TableRow key={p.id} className="hover:bg-muted/30">
+                                <TableCell className="font-medium text-center text-muted-foreground">{i + 1}</TableCell>
+                                <TableCell>
+                                  {p.tipo === 'mensal' ? (
+                                    <span className="inline-flex items-center text-[11px] font-semibold px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
+                                      Mensal
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center text-[11px] font-semibold px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300">
+                                      {p.tipo.replace('extra-', '').charAt(0).toUpperCase() + p.tipo.replace('extra-', '').slice(1)}
+                                    </span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-sm">{new Date(p.vencimento).toLocaleDateString('pt-BR')}</TableCell>
+                                <TableCell className="text-right text-muted-foreground text-sm font-mono">
+                                  {p.valorBase > 0 ? `R$ ${p.valorBase.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}
+                                </TableCell>
+                                <TableCell className="text-center text-xs font-mono text-muted-foreground">
+                                  {p.valorBase > 0 ? `${(p.valorCorrigido / p.valorBase).toFixed(4)}x` : '-'}
+                                </TableCell>
+                                <TableCell className="text-right font-bold font-mono text-primary">
+                                  R$ {p.valorCorrigido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                      {/* Totals row */}
+                      <div className="border-t bg-muted/30 px-4 py-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 text-xs sm:text-sm">
+                        <div className="flex items-center gap-4">
+                          <span className="text-muted-foreground">Total Base:</span>
+                          <span className="font-mono font-semibold">R$ {totalBaseObras.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className="text-primary font-semibold">Total Corrigido:</span>
+                          <span className="font-mono font-bold text-primary">R$ {totalPagoObrasCorrigido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="px-4 py-3">
+                      <p className="text-[11px] text-muted-foreground flex items-start gap-1.5">
+                        <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                        <span>Valores corrigidos mensalmente pelo índice <b>{indiceSelecionado}</b> à taxa de <b>{taxaAtiva.toFixed(3)}% a.m.</b> ({periodoMedia === 'projecao' ? 'projeção' : `média ${periodoMedia === '12m' ? '12' : '180'} meses`}). O fator de correção é aplicado progressivamente desde a assinatura até cada vencimento.</span>
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Card 3: Parcelamento Pós-Obra (only if enabled) */}
+                {resultadoSimulacao.parcelasPosObra.length > 0 && (
+                  <Card>
+                    <CardHeader className="bg-amber-50/50 dark:bg-amber-950/20 border-b border-amber-100 dark:border-amber-900">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
+                          <Home className="h-5 w-5" />
+                          Parcelamento Pós-Obra (Tabela PRICE)
+                        </CardTitle>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 px-2 py-1 rounded-full font-medium">
+                            {prazoPosObra} meses
+                          </span>
+                          <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-semibold">
+                            R$ {resultadoSimulacao.prestacaoPosObra.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês
+                          </span>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
                       <div className="border rounded-lg overflow-hidden">
-                        <div className="max-h-[500px] overflow-y-auto">
+                        <div className="max-h-[400px] overflow-y-auto">
                           <Table>
-                            <TableHeader className="bg-muted/50 sticky top-0 z-10">
+                            <TableHeader className="bg-amber-50/30 dark:bg-amber-950/10 sticky top-0 z-10">
                               <TableRow>
-                                <TableHead className="w-[80px] text-center">#</TableHead>
-                                <TableHead>Tipo</TableHead>
-                                <TableHead>Vencimento</TableHead>
-                                <TableHead className="text-right">Valor Base</TableHead>
-                                <TableHead className="text-right font-bold text-primary">Valor Corrigido</TableHead>
+                                <TableHead className="w-[60px] text-center">Mês</TableHead>
+                                <TableHead className="text-center">Vencimento</TableHead>
+                                <TableHead className="text-right">Prestação</TableHead>
+                                <TableHead className="text-right">Juros</TableHead>
+                                <TableHead className="text-right">Amortização</TableHead>
+                                <TableHead className="text-right font-bold">Saldo Devedor</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {resultadoSimulacao.parcelas.map((p, i) => (
+                              {resultadoSimulacao.parcelasPosObra.map((p) => (
                                 <TableRow key={p.id} className="hover:bg-muted/30">
-                                  <TableCell className="font-medium text-center text-muted-foreground">{i + 1}ª</TableCell>
-                                  <TableCell className="capitalize text-xs font-semibold">
-                                    {p.tipo === 'mensal' ? 'Mensal' : p.tipo.replace('extra-', '').replace('-', ' ')}
+                                  <TableCell className="font-medium text-center text-muted-foreground">{p.mes}</TableCell>
+                                  <TableCell className="text-sm text-center">{new Date(p.vencimento).toLocaleDateString('pt-BR')}</TableCell>
+                                  <TableCell className="text-right font-mono font-semibold">
+                                    R$ {p.parcela.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                   </TableCell>
-                                  <TableCell>{new Date(p.vencimento).toLocaleDateString('pt-BR')}</TableCell>
                                   <TableCell className="text-right text-muted-foreground text-sm font-mono">
-                                    {p.valorBase > 0 ? `R$ ${p.valorBase.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}
+                                    R$ {p.juros.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                   </TableCell>
-                                  <TableCell className="text-right font-bold font-mono text-primary">
-                                    R$ {p.valorCorrigido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                  <TableCell className="text-right text-sm font-mono">
+                                    R$ {p.amortizacao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                  </TableCell>
+                                  <TableCell className="text-right font-bold font-mono text-amber-700 dark:text-amber-400">
+                                    R$ {p.saldoDevedor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                   </TableCell>
                                 </TableRow>
                               ))}
                             </TableBody>
                           </Table>
                         </div>
-                      </div>
-                    </div>
-
-                    {/* Parcelamento Pós-Obra */}
-                    {resultadoSimulacao.parcelasPosObra.length > 0 && (
-                      <div>
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="font-semibold text-lg">Parcelamento Pós-Obra (PRICE)</h4>
+                        {/* Totals row */}
+                        <div className="border-t bg-muted/30 px-4 py-2.5 flex flex-wrap items-center justify-between gap-x-6 gap-y-1.5 text-xs sm:text-sm">
                           <div className="flex items-center gap-2">
-                            <span className="text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 px-2 py-1 rounded-full font-medium">
-                              {prazoPosObra} meses
-                            </span>
-                            <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-semibold">
-                              R$ {resultadoSimulacao.prestacaoPosObra.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês
-                            </span>
+                            <span className="text-muted-foreground">Prestação × {prazoPosObra}:</span>
+                            <span className="font-mono font-bold text-primary">R$ {totalPosObraPago.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                           </div>
-                        </div>
-                        
-                        <div className="border rounded-lg overflow-hidden">
-                          <div className="max-h-[400px] overflow-y-auto">
-                            <Table>
-                              <TableHeader className="bg-amber-50/50 dark:bg-amber-950/20 sticky top-0 z-10">
-                                <TableRow>
-                                  <TableHead className="w-[60px] text-center">Mês</TableHead>
-                                  <TableHead>Vencimento</TableHead>
-                                  <TableHead className="text-right">Prestação</TableHead>
-                                  <TableHead className="text-right">Juros</TableHead>
-                                  <TableHead className="text-right">Amortização</TableHead>
-                                  <TableHead className="text-right font-bold">Saldo Devedor</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {resultadoSimulacao.parcelasPosObra.map((p) => (
-                                  <TableRow key={p.id} className="hover:bg-muted/30">
-                                    <TableCell className="font-medium text-center text-muted-foreground">{p.mes}</TableCell>
-                                    <TableCell className="text-sm">{new Date(p.vencimento).toLocaleDateString('pt-BR')}</TableCell>
-                                    <TableCell className="text-right font-mono font-semibold">
-                                      R$ {p.parcela.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                    </TableCell>
-                                    <TableCell className="text-right text-muted-foreground text-sm font-mono">
-                                      R$ {p.juros.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                    </TableCell>
-                                    <TableCell className="text-right text-sm font-mono">
-                                      R$ {p.amortizacao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                    </TableCell>
-                                    <TableCell className="text-right font-bold font-mono text-amber-700 dark:text-amber-400">
-                                      R$ {p.saldoDevedor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
+                          <div className="flex items-center gap-4">
+                            <span className="text-muted-foreground">
+                              Juros: <span className="font-mono text-amber-700 dark:text-amber-400">R$ {(totalPosObraPago - resultadoSimulacao.saldoDevedor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            </span>
+                            <span className="text-muted-foreground">
+                              Amort.: <span className="font-mono font-semibold">R$ {resultadoSimulacao.saldoDevedor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            </span>
                           </div>
                         </div>
                       </div>
-                    )}
-                    
-                    <Alert className="bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-                      <CheckCircle2 className="h-4 w-4 text-primary" />
-                      <AlertDescription className="ml-2">
-                        <p className="font-semibold text-foreground">Resumo:</p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Simulação baseada no índice {indiceSelecionado} ({periodoMedia === 'projecao' ? dadosIndiceAtivo?.projecao : periodoMedia === '12m' ? dadosIndiceAtivo?.avg12 : dadosIndiceAtivo?.avg180}% a.m.)
-                          {periodoMedia === 'projecao' ? ' - Projeção de mercado (Focus Report BCB)' : ` - Média ${periodoMedia === '12m' ? '12' : '180'} meses`}.
-                          {habilitarPosObra && prazoPosObra > 0 ? ` Pós-obra: Tabela PRICE ${prazoPosObra} meses (IPCA + 1% a.m.).` : ''}
-                          {' '}Fonte: {fonteDados}.
+                      <div className="px-4 py-3">
+                        <p className="text-[11px] text-muted-foreground flex items-start gap-1.5">
+                          <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                          <span>Tabela PRICE com prestações fixas. Taxa de juros compostos: <b>IPCA + 1% a.m.</b> A prestação inclui juros decrescentes e amortização crescente até quitar o saldo devedor.</span>
                         </p>
-                      </AlertDescription>
-                    </Alert>
-                  </>
-                ) : (
-                  <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-muted-foreground space-y-4">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground/50" />
-                    <p>Calculando melhores condições...</p>
-                  </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 )}
-              </CardContent>
-            </Card>
+
+                {/* Parameters Alert */}
+                <Alert variant="default" className="bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800">
+                  <Info className="h-4 w-4 text-primary" />
+                  <AlertDescription className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 ml-2">
+                    <span className="font-semibold text-foreground">Parâmetros:</span>
+                    <span>
+                      {indiceSelecionado} ({taxaAtiva.toFixed(3)}% a.m. • {periodoMedia === 'projecao' ? 'Projeção' : `Média ${periodoMedia === '12m' ? '12' : '180'}m`})
+                    </span>
+                    <span className="text-slate-300 dark:text-slate-700">|</span>
+                    <span>Captação: {percentualCaptação}%</span>
+                    <span className="text-slate-300 dark:text-slate-700">|</span>
+                    <span>Entrega: {dataEntregaAtual ? new Date(dataEntregaAtual).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' }) : '-'}</span>
+                    <span className="text-slate-300 dark:text-slate-700">|</span>
+                    <span className={dadosIndiceAtivo?.isFallback ? 'text-amber-600' : 'text-green-600'}>{fonteDados}</span>
+                    {habilitarPosObra && resultadoSimulacao.parcelasPosObra.length > 0 && (
+                      <>
+                        <span className="text-slate-300 dark:text-slate-700">|</span>
+                        <span>Pós-obra: PRICE {prazoPosObra}m (IPCA+1%)</span>
+                      </>
+                    )}
+                  </AlertDescription>
+                </Alert>
+              </>
+            ) : (
+              <Card className="shadow-lg">
+                <CardContent className="min-h-[300px] flex flex-col items-center justify-center text-muted-foreground space-y-4">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground/50" />
+                  <p>Calculando melhores condições...</p>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </main>
