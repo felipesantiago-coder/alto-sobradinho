@@ -315,10 +315,15 @@ export default function SimuladorUnidadePage() {
 
     parcelas.sort((a, b) => new Date(a.vencimento).getTime() - new Date(b.vencimento).getTime());
 
+    // Saldo Devedor Pós-Obras corrigido pelo índice durante todo o período de obras
+    // O saldo original é corrigido mensalmente desde o mês 1 até o último mês de obras
+    const saldoDevedorOriginal = valorFinal - totalCaptação;
+    const saldoDevedorCorrigido = saldoDevedorOriginal * Math.pow(1 + taxaMensalDecimal, mesesTotais);
+
     setResultadoSimulacao({
       entrada: parseFloat(entrada.toFixed(2)),
       totalObras: parseFloat(totalCaptação.toFixed(2)),
-      saldoDevedor: parseFloat(saldoParaObras.toFixed(2)),
+      saldoDevedor: parseFloat(saldoDevedorCorrigido.toFixed(2)),
       parcelas: parcelas
     });
   }
